@@ -1,0 +1,692 @@
+{% extends 'restaurants/base.html' %}
+{% load tenant_tags %}
+
+{% block title %}{{ item.name }} - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .product-image {
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        transition: transform 0.3s ease;
+    }
+    
+    .product-image:hover {
+        transform: scale(1.02);
+    }
+    
+    .price-badge {
+        background: linear-gradient(135deg, var(--tenant-primary), #28a745);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 25px;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .discount-badge {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        z-index: 2;
+    }
+    
+    .variant-option, .addon-option {
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .variant-option:hover, .addon-option:hover {
+        border-color: var(--tenant-primary);
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+    
+    .variant-option.selected, .addon-option.selected {
+        border-color: var(--tenant-primary);
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    .add-to-cart-btn {
+        background: linear-gradient(135deg, var(--tenant-primary), #28a745);
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 25px;
+        color: white;
+        font-weight: bold;
+        font-size: 1.1rem;
+        transition: transform 0.2s ease;
+    }
+    
+    .add-to-cart-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    .quantity-controls {
+        border: 2px solid #e9ecef;
+        border-radius: 25px;
+        overflow: hidden;
+    }
+    
+    .quantity-btn {
+        background: var(--tenant-primary);
+        border: none;
+        color: white;
+        width: 40px;
+        height: 40px;
+        font-weight: bold;
+    }
+    
+    .quantity-input {
+        border: none;
+        text-align: center;
+        width: 60px;
+        height: 40px;
+        font-weight: bold;
+    }
+    
+    .dietary-tags .badge {
+        margin-right: 0.5rem;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.85rem;
+    }
+    
+    .related-product-card {
+        transition: transform 0.2s ease;
+        border: none;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .related-product-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="/{{ tenant.slug }}/" class="text-decoration-none">Inicio</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="/{{ tenant.slug }}/menu/" class="text-decoration-none">Menú</a>
+            </li>
+            <li class="breadcrumb-item active">{{ item.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- Producto Principal -->
+    <div class="row mb-5">
+        <!-- Imagen del Producto -->
+        <div class="col-lg-6 mb-4">
+            <div class="position-relative">
+                {% if discount_info %}
+                    <div class="discount-badge">
+                        -{{ discount_info.percentage }}% OFF
+                    </div>
+                {% endif %}
+                
+                {% if item.image %}
+                    <img src="{{ item.image.url }}" alt="{{ item.name }}" 
+                         class="img-fluid product-image w-100" style="height: 400px; object-fit: cover;">
+                {% else %}
+                    <div class="product-image w-100 d-flex align-items-center justify-content-center bg-light" 
+                         style="height: 400px;">
+                        <i class="fas fa-utensils fa-5x text-muted"></i>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Información Adicional -->
+            <div class="row mt-3">
+                {% if item.preparation_time %}
+                <div class="col-4 text-center">
+                    <div class="bg-light rounded p-3">
+                        <i class="fas fa-clock text-primary mb-2 d-block"></i>
+                        <small class="text-muted">Tiempo</small>
+                        <div class="fw-bold">{{ item.preparation_time }} min</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if item.calories %}
+                <div class="col-4 text-center">
+                    <div class="bg-light rounded p-3">
+                        <i class="fas fa-fire text-warning mb-2 d-block"></i>
+                        <small class="text-muted">Calorías</small>
+                        <div class="fw-bold">{{ item.calories }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="col-4 text-center">
+                    <div class="bg-light rounded p-3">
+                        <i class="fas fa-star text-warning mb-2 d-block"></i>
+                        <small class="text-muted">Categoría</small>
+                        <div class="fw-bold small">{{ item.category.name }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información del Producto -->
+        <div class="col-lg-6">
+            <div class="mb-3">
+                <h1 class="display-5 fw-bold mb-2">{{ item.name }}</h1>
+                
+                <!-- Tags Dietéticos -->
+                <div class="dietary-tags mb-3">
+                    {% if item.is_featured %}
+                        <span class="badge bg-warning text-dark">⭐ Destacado</span>
+                    {% endif %}
+                    {% if item.is_vegetarian %}
+                        <span class="badge bg-success">🥗 Vegetariano</span>
+                    {% endif %}
+                    {% if item.is_vegan %}
+                        <span class="badge bg-info">🌱 Vegano</span>
+                    {% endif %}
+                    {% if item.is_gluten_free %}
+                        <span class="badge bg-primary">🚫 Sin Gluten</span>
+                    {% endif %}
+                    {% if item.is_spicy %}
+                        <span class="badge bg-danger">🌶️ Picante</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Precio -->
+            <div class="mb-4">
+                {% if discount_info %}
+                    <div class="mb-2">
+                        <span class="text-muted fs-5" style="text-decoration: line-through;">
+                            ${{ discount_info.original_price }}
+                        </span>
+                        <span class="text-success ms-2 small">
+                            Ahorras ${{ discount_info.savings }}
+                        </span>
+                    </div>
+                    <div class="price-badge">
+                        ${{ discount_info.discounted_price }}
+                    </div>
+                {% else %}
+                    <div class="price-badge">
+                        ${{ item.current_price }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Descripción -->
+            <div class="mb-4">
+                <p class="fs-6 text-muted lh-lg">{{ item.description }}</p>
+            </div>
+
+            <!-- Formulario de Personalización -->
+            <form id="add-to-cart-form" method="post">
+                {% csrf_token %}
+                
+                <!-- Variantes (Tamaños, Tipos) -->
+                {% if variants %}
+                <div class="mb-4">
+                    <h5 class="fw-bold mb-3">Tamaño/Tipo</h5>
+                    {% for variant in variants %}
+                    <div class="variant-option" data-variant-id="{{ variant.id }}" data-price-modifier="{{ variant.price_modifier }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-bold">{{ variant.name }}</div>
+                                {% if variant.description %}
+                                    <small class="text-muted">{{ variant.description }}</small>
+                                {% endif %}
+                            </div>
+                            <div class="text-end">
+                                {% if variant.price_modifier > 0 %}
+                                    <span class="text-success">+${{ variant.price_modifier }}</span>
+                                {% elif variant.price_modifier < 0 %}
+                                    <span class="text-danger">${{ variant.price_modifier }}</span>
+                                {% else %}
+                                    <span class="text-muted">Sin costo extra</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <input type="hidden" name="variant_id" id="selected-variant">
+                </div>
+                {% endif %}
+
+                <!-- Addons (Extras) -->
+                {% if addons %}
+                <div class="mb-4">
+                    <h5 class="fw-bold mb-3">Extras</h5>
+                    {% for addon in addons %}
+                    <div class="addon-option" data-addon-id="{{ addon.id }}" data-price="{{ addon.price }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-bold">{{ addon.name }}</div>
+                                {% if addon.description %}
+                                    <small class="text-muted">{{ addon.description }}</small>
+                                {% endif %}
+                            </div>
+                            <div class="text-end">
+                                <span class="text-success">+${{ addon.price }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <input type="hidden" name="addons" id="selected-addons">
+                </div>
+                {% endif %}
+
+                <!-- Modificadores -->
+                {% if modifiers %}
+                <div class="mb-4">
+                    <h5 class="fw-bold mb-3">Modificaciones</h5>
+                    <div class="row">
+                        {% for modifier in modifiers %}
+                        <div class="col-md-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="modifiers" 
+                                       value="{{ modifier.id }}" id="modifier-{{ modifier.id }}">
+                                <label class="form-check-label" for="modifier-{{ modifier.id }}">
+                                    {{ modifier.name }}
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Cantidad y Agregar al Carrito -->
+                <div class="row align-items-center mb-4">
+                    <div class="col-auto">
+                        <label class="form-label fw-bold">Cantidad:</label>
+                    </div>
+                    <div class="col-auto">
+                        <div class="quantity-controls d-flex">
+                            <button type="button" class="quantity-btn" id="decrease-qty">-</button>
+                            <input type="number" name="quantity" id="quantity" class="quantity-input" 
+                                   value="1" min="1" max="10">
+                            <button type="button" class="quantity-btn" id="increase-qty">+</button>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="text-end">
+                            <div class="fw-bold fs-5">
+                                Total: $<span id="total-price">{{ item.current_price }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botón Agregar al Carrito -->
+                <div class="d-grid mb-4">
+                    {% if item.is_in_stock %}
+                        <button type="button" class="add-to-cart-btn" onclick="addToCart()">
+                            <i class="fas fa-shopping-cart me-2"></i>
+                            Agregar al Carrito
+                        </button>
+                    {% else %}
+                        <button type="button" class="btn btn-secondary btn-lg" disabled>
+                            <i class="fas fa-times me-2"></i>
+                            Producto Agotado
+                        </button>
+                    {% endif %}
+                </div>
+            </form>
+
+            <!-- Notas Especiales -->
+            {% if item.allergen_info or item.nutritional_info %}
+            <div class="alert alert-info">
+                <h6 class="fw-bold mb-2">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Información Importante
+                </h6>
+                {% if item.allergen_info %}
+                    <p class="mb-1"><strong>Alérgenos:</strong> {{ item.allergen_info }}</p>
+                {% endif %}
+                {% if item.nutritional_info %}
+                    <p class="mb-0"><strong>Info Nutricional:</strong> {{ item.nutritional_info }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Productos Relacionados -->
+    {% if related_items %}
+    <div class="row">
+        <div class="col-12">
+            <h3 class="fw-bold mb-4 text-center">También te puede interesar</h3>
+            <div class="row">
+                {% for related_item in related_items %}
+                <div class="col-lg-3 col-md-6 mb-4">
+                    <div class="card related-product-card h-100">
+                        {% if related_item.image %}
+                            <img src="{{ related_item.image.url }}" class="card-img-top" 
+                                 style="height: 200px; object-fit: cover;" alt="{{ related_item.name }}">
+                        {% else %}
+                            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" 
+                                 style="height: 200px;">
+                                <i class="fas fa-utensils fa-2x text-muted"></i>
+                            </div>
+                        {% endif %}
+                        <div class="card-body">
+                            <h6 class="card-title">{{ related_item.name }}</h6>
+                            <p class="card-text text-muted small">{{ related_item.short_description }}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold text-primary">${{ related_item.current_price }}</span>
+                                <a href="/{{ tenant.slug }}/menu/item/{{ related_item.slug }}/" 
+                                   class="btn btn-sm btn-outline-primary">Ver</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- JavaScript para funcionalidad interactiva -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const basePrice = parseFloat({{ item.current_price }});
+    let selectedVariant = null;
+    let selectedAddons = [];
+    
+    console.log('JavaScript cargado. Precio base:', basePrice);
+    
+    // Verificar que los elementos existen
+    const decreaseBtn = document.getElementById('decrease-qty');
+    const increaseBtn = document.getElementById('increase-qty');
+    const quantityInput = document.getElementById('quantity');
+    const totalPriceElement = document.getElementById('total-price');
+    
+    console.log('Elementos encontrados:', {
+        decreaseBtn: !!decreaseBtn,
+        increaseBtn: !!increaseBtn,
+        quantityInput: !!quantityInput,
+        totalPriceElement: !!totalPriceElement
+    });
+    
+    // Manejar selección de variantes
+    document.querySelectorAll('.variant-option').forEach(function(option) {
+        option.addEventListener('click', function() {
+            console.log('Variante seleccionada:', this.dataset.variantId);
+            document.querySelectorAll('.variant-option').forEach(function(opt) {
+                opt.classList.remove('selected');
+            });
+            this.classList.add('selected');
+            selectedVariant = {
+                id: this.dataset.variantId,
+                priceModifier: parseFloat(this.dataset.priceModifier) || 0
+            };
+            
+            const selectedVariantInput = document.getElementById('selected-variant');
+            if (selectedVariantInput) {
+                selectedVariantInput.value = selectedVariant.id;
+            }
+            updateTotalPrice();
+        });
+    });
+    
+    // Manejar selección de addons
+    document.querySelectorAll('.addon-option').forEach(function(option) {
+        option.addEventListener('click', function() {
+            const addonId = this.dataset.addonId;
+            const addonPrice = parseFloat(this.dataset.price) || 0;
+            
+            console.log('Addon clickeado:', addonId, addonPrice);
+            
+            if (this.classList.contains('selected')) {
+                this.classList.remove('selected');
+                selectedAddons = selectedAddons.filter(function(addon) {
+                    return addon.id !== addonId;
+                });
+            } else {
+                this.classList.add('selected');
+                selectedAddons.push({id: addonId, price: addonPrice});
+            }
+            
+            const selectedAddonsInput = document.getElementById('selected-addons');
+            if (selectedAddonsInput) {
+                selectedAddonsInput.value = selectedAddons.map(function(addon) {
+                    return addon.id;
+                }).join(',');
+            }
+            updateTotalPrice();
+        });
+    });
+    
+    // Manejar controles de cantidad
+    if (decreaseBtn) {
+        decreaseBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Botón decrease clickeado');
+            if (quantityInput && quantityInput.value > 1) {
+                quantityInput.value = parseInt(quantityInput.value) - 1;
+                updateTotalPrice();
+            }
+        });
+    }
+    
+    if (increaseBtn) {
+        increaseBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Botón increase clickeado');
+            if (quantityInput && quantityInput.value < 10) {
+                quantityInput.value = parseInt(quantityInput.value) + 1;
+                updateTotalPrice();
+            }
+        });
+    }
+    
+    if (quantityInput) {
+        quantityInput.addEventListener('change', function() {
+            console.log('Cantidad cambiada:', this.value);
+            updateTotalPrice();
+        });
+    }
+    
+    // Actualizar precio total
+    function updateTotalPrice() {
+        let total = basePrice;
+        
+        console.log('Calculando precio total. Base:', basePrice);
+        
+        // Agregar modificador de variante
+        if (selectedVariant && selectedVariant.priceModifier) {
+            total += selectedVariant.priceModifier;
+            console.log('Variante agregada:', selectedVariant.priceModifier, 'Total:', total);
+        }
+        
+        // Agregar precios de addons
+        selectedAddons.forEach(function(addon) {
+            total += addon.price;
+            console.log('Addon agregado:', addon.price, 'Total:', total);
+        });
+        
+        // Multiplicar por cantidad
+        let quantity = 1;
+        if (quantityInput) {
+            quantity = parseInt(quantityInput.value) || 1;
+        }
+        total *= quantity;
+        
+        console.log('Precio final (x' + quantity + '):', total);
+        
+        // Actualizar display
+        if (totalPriceElement) {
+            totalPriceElement.textContent = total.toFixed(2);
+        }
+    }
+    
+    // Llamar una vez para inicializar
+    updateTotalPrice();
+    
+    // Función global para agregar al carrito
+    window.addToCart = function() {
+        console.log('🛒 Iniciando agregar al carrito...');
+        
+        // Obtener datos del formulario
+        const quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+        const variantId = selectedVariant ? selectedVariant.id : null;
+        const addonIds = selectedAddons.map(function(addon) { return addon.id; });
+        const modifierIds = Array.from(document.querySelectorAll('.modifier-option:checked')).map(function(cb) { 
+            return cb.value; 
+        });
+        
+        console.log('📊 Datos a enviar:', {
+            menu_item_id: '{{ item.id }}',
+            quantity: quantity,
+            variantId: variantId,
+            addonIds: addonIds,
+            modifierIds: modifierIds
+        });
+        
+        // Verificar CSRF token
+        const csrfToken = getCookie('csrftoken');
+        console.log('🔐 CSRF Token:', csrfToken ? 'Encontrado' : 'NO ENCONTRADO');
+        
+        if (!csrfToken) {
+            showToast('Error: Token CSRF no encontrado. Recarga la página.', 'error');
+            return;
+        }
+        
+        // Preparar datos para envío
+        const formData = new FormData();
+        formData.append('menu_item_id', '{{ item.id }}');
+        formData.append('quantity', quantity);
+        if (variantId) {
+            formData.append('variant_id', variantId);
+        }
+        if (addonIds.length > 0) {
+            formData.append('addons', addonIds.join(','));
+        }
+        modifierIds.forEach(function(modifierId) {
+            formData.append('modifiers', modifierId);
+        });
+        formData.append('csrfmiddlewaretoken', csrfToken);
+        
+        // URL de destino
+        const targetUrl = '/{{ tenant.slug }}/menu/cart/add/';
+        console.log('🌐 URL destino:', targetUrl);
+        
+        // Enviar al servidor
+        const addButton = document.querySelector('.add-to-cart-btn');
+        if (addButton) {
+            addButton.disabled = true;
+            addButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Agregando...';
+        }
+        
+        fetch(targetUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            }
+        })
+        .then(response => {
+            console.log('📡 Respuesta recibida:', response.status, response.statusText);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Datos de respuesta:', data);
+            
+            if (data.success) {
+                // Mostrar mensaje de éxito
+                showToast('¡Producto agregado al carrito!', 'success');
+                
+                // Actualizar contador del carrito (si existe)
+                updateCartCounter(data.cart_total_items);
+                
+                // Opcional: redireccionar al carrito
+                setTimeout(function() {
+                    if (confirm('¿Quieres ver tu carrito ahora?')) {
+                        window.location.href = '/{{ tenant.slug }}/menu/cart/';
+                    }
+                }, 1000);
+            } else {
+                showToast(data.error || 'Error al agregar el producto', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error completo:', error);
+            showToast('Error de conexión: ' + error.message, 'error');
+        })
+        .finally(function() {
+            // Restaurar botón
+            if (addButton) {
+                addButton.disabled = false;
+                addButton.innerHTML = '<i class="fas fa-shopping-cart me-2"></i>Agregar al Carrito';
+            }
+        });
+    };
+    
+    // Función para obtener CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Función para mostrar notificaciones
+    function showToast(message, type) {
+        // Crear toast
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        toast.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Auto-remover después de 5 segundos
+        setTimeout(function() {
+            if (toast.parentElement) {
+                toast.remove();
+            }
+        }, 5000);
+    }
+    
+    // Función para actualizar contador del carrito
+    function updateCartCounter(count) {
+        const counter = document.querySelector('#cart-counter, .cart-counter');
+        if (counter) {
+            counter.textContent = count;
+        }
+    }
+});
+</script>
+{% endblock %} 

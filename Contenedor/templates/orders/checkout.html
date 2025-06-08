@@ -1,0 +1,503 @@
+{% extends 'restaurants/base.html' %}
+{% load humanize %}
+
+{% block title %}Finalizar Pedido - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .checkout-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .order-summary {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .checkout-form {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 30px;
+    }
+    
+    .form-section {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    
+    .section-title {
+        color: #333;
+        font-weight: 600;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 10px;
+        color: #28a745;
+    }
+    
+    .order-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .order-item:last-child {
+        border-bottom: none;
+    }
+    
+    .item-details {
+        flex: 1;
+    }
+    
+    .item-name {
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .item-extras {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    .item-price {
+        font-weight: 600;
+        color: #28a745;
+    }
+    
+    .price-summary {
+        border-top: 2px solid #28a745;
+        padding-top: 15px;
+        margin-top: 15px;
+    }
+    
+    .price-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    
+    .total-row {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #28a745;
+    }
+    
+    .conditional-field {
+        display: none;
+    }
+    
+    .btn-checkout {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1em;
+        font-weight: 600;
+    }
+    
+    .required-field::after {
+        content: ' *';
+        color: red;
+    }
+    
+    @media (max-width: 768px) {
+        .checkout-container {
+            padding: 10px;
+        }
+        
+        .checkout-form {
+            padding: 20px;
+        }
+        
+        .order-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .item-price {
+            margin-top: 5px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="checkout-container">
+    <h1 class="mb-4">
+        <i class="fas fa-credit-card"></i>
+        Finalizar Pedido
+    </h1>
+    
+    <div class="row">
+        <!-- Resumen del pedido -->
+        <div class="col-lg-5 mb-4">
+            <div class="order-summary">
+                <h3 class="mb-3">
+                    <i class="fas fa-shopping-cart"></i>
+                    Resumen del Pedido
+                </h3>
+                
+                {% for item in cart.items %}
+                <div class="order-item">
+                    <div class="item-details">
+                        <div class="item-name">
+                            {{ item.quantity }}x {{ item.menu_item.name }}
+                        </div>
+                        {% if item.variant or item.addons or item.modifiers %}
+                        <div class="item-extras">
+                            {% if item.variant %}
+                                <span class="badge bg-info me-1">{{ item.variant.name }}</span>
+                            {% endif %}
+                            {% for addon in item.addons %}
+                                <span class="badge bg-success me-1">+ {{ addon.name }}</span>
+                            {% endfor %}
+                            {% for modifier in item.modifiers %}
+                                <span class="badge bg-warning me-1">{{ modifier.name }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if item.special_instructions %}
+                        <div class="item-extras">
+                            <em>{{ item.special_instructions }}</em>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="item-price">
+                        ${{ item.total_price|floatformat:0|intcomma }}
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="price-summary">
+                    <div class="price-row">
+                        <span>Subtotal:</span>
+                        <span>${{ cart.subtotal|floatformat:0|intcomma }}</span>
+                    </div>
+                    <div class="price-row">
+                        <span>IVA (19%):</span>
+                        <span id="tax-amount">${{ cart.tax|floatformat:0|intcomma }}</span>
+                    </div>
+                    <div class="price-row" id="delivery-row" style="display: none;">
+                        <span>Domicilio:</span>
+                        <span>$5,000</span>
+                    </div>
+                    <div class="price-row total-row">
+                        <span>Total:</span>
+                        <span id="total-amount">${{ cart_total|floatformat:0|intcomma }}</span>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        {{ cart_count }} producto{{ cart_count|pluralize }} en tu pedido
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Formulario de checkout -->
+        <div class="col-lg-7">
+            <form method="post" class="checkout-form" id="checkout-form">
+                {% csrf_token %}
+                
+                <!-- Información del cliente -->
+                <div class="form-section">
+                    <h4 class="section-title">
+                        <i class="fas fa-user"></i>
+                        Información del Cliente
+                    </h4>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.customer_name.id_for_label }}" class="form-label required-field">
+                                {{ form.customer_name.label }}
+                            </label>
+                            {{ form.customer_name }}
+                            {% if form.customer_name.errors %}
+                                <div class="text-danger">{{ form.customer_name.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.customer_phone.id_for_label }}" class="form-label required-field">
+                                {{ form.customer_phone.label }}
+                            </label>
+                            {{ form.customer_phone }}
+                            {% if form.customer_phone.errors %}
+                                <div class="text-danger">{{ form.customer_phone.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.customer_email.id_for_label }}" class="form-label">
+                            {{ form.customer_email.label }}
+                        </label>
+                        {{ form.customer_email }}
+                        {% if form.customer_email.errors %}
+                            <div class="text-danger">{{ form.customer_email.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Te enviaremos la confirmación del pedido (opcional)
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Tipo de pedido -->
+                <div class="form-section">
+                    <h4 class="section-title">
+                        <i class="fas fa-motorcycle"></i>
+                        Tipo de Pedido
+                    </h4>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.order_type.id_for_label }}" class="form-label required-field">
+                            {{ form.order_type.label }}
+                        </label>
+                        {{ form.order_type }}
+                        {% if form.order_type.errors %}
+                            <div class="text-danger">{{ form.order_type.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Campo condicional: Mesa -->
+                    <div id="table-field" class="conditional-field mb-3">
+                        <label for="{{ form.table_number.id_for_label }}" class="form-label required-field">
+                            {{ form.table_number.label }}
+                        </label>
+                        {{ form.table_number }}
+                        {% if form.table_number.errors %}
+                            <div class="text-danger">{{ form.table_number.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Campo condicional: Dirección -->
+                    <div id="address-field" class="conditional-field mb-3">
+                        <label for="{{ form.delivery_address.id_for_label }}" class="form-label required-field">
+                            {{ form.delivery_address.label }}
+                        </label>
+                        {{ form.delivery_address }}
+                        {% if form.delivery_address.errors %}
+                            <div class="text-danger">{{ form.delivery_address.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Método de pago -->
+                <div class="form-section">
+                    <h4 class="section-title">
+                        <i class="fas fa-credit-card"></i>
+                        Método de Pago
+                    </h4>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.payment_method.id_for_label }}" class="form-label required-field">
+                            {{ form.payment_method.label }}
+                        </label>
+                        {{ form.payment_method }}
+                        {% if form.payment_method.errors %}
+                            <div class="text-danger">{{ form.payment_method.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            El pago se realizará al momento de la entrega
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Notas especiales -->
+                <div class="form-section">
+                    <h4 class="section-title">
+                        <i class="fas fa-sticky-note"></i>
+                        Instrucciones Especiales
+                    </h4>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.customer_notes.id_for_label }}" class="form-label">
+                            {{ form.customer_notes.label }}
+                        </label>
+                        {{ form.customer_notes }}
+                        {% if form.customer_notes.errors %}
+                            <div class="text-danger">{{ form.customer_notes.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Alergias, preferencias de cocción, etc.
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Errores generales del formulario -->
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {{ form.non_field_errors }}
+                    </div>
+                {% endif %}
+                
+                <!-- Botones -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'orders:cart_redirect' tenant_slug=request.tenant.slug %}" class="btn btn-outline-secondary me-md-2">
+                        <i class="fas fa-arrow-left"></i>
+                        Volver al Carrito
+                    </a>
+                    <button type="submit" class="btn btn-success btn-checkout">
+                        <i class="fas fa-check"></i>
+                        Confirmar Pedido
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const orderTypeSelect = document.getElementById('id_order_type');
+    const tableField = document.getElementById('table-field');
+    const addressField = document.getElementById('address-field');
+    const deliveryRow = document.getElementById('delivery-row');
+    const totalAmount = document.getElementById('total-amount');
+    
+    // Función para mostrar/ocultar campos según el tipo de pedido
+    function toggleFields() {
+        const selectedType = orderTypeSelect.value;
+        
+        // Ocultar todos los campos condicionales
+        tableField.style.display = 'none';
+        addressField.style.display = 'none';
+        deliveryRow.style.display = 'none';
+        
+        // Mostrar campos según el tipo seleccionado
+        if (selectedType === 'dine_in') {
+            tableField.style.display = 'block';
+            updateTotal(false); // Sin fee de delivery
+        } else if (selectedType === 'delivery') {
+            addressField.style.display = 'block';
+            deliveryRow.style.display = 'block';
+            updateTotal(true); // Con fee de delivery
+        } else {
+            updateTotal(false); // Takeaway sin fee
+        }
+    }
+    
+    // Función para actualizar el total
+    function updateTotal(includeDelivery) {
+        const baseTotal = {{ cart_total|floatformat:0 }};
+        const deliveryFee = includeDelivery ? 5000 : 0;
+        const newTotal = baseTotal + deliveryFee;
+        
+        totalAmount.textContent = '$' + newTotal.toLocaleString('es');
+    }
+    
+    // Evento para cambio en tipo de pedido
+    orderTypeSelect.addEventListener('change', toggleFields);
+    
+    // Inicializar en carga de página
+    toggleFields();
+    
+    // Verificar si hay mesa seleccionada desde QR
+    {% if request.session.selected_table %}
+    // Mesa seleccionada desde QR - pre-llenar campos
+    orderTypeSelect.value = 'dine_in';
+    document.getElementById('id_table_number').value = '{{ request.session.selected_table.table_number }}';
+    toggleFields();
+    
+    // Mostrar mensaje informativo
+    const tableAlert = document.createElement('div');
+    tableAlert.className = 'alert alert-info alert-dismissible fade show mt-3';
+    tableAlert.innerHTML = `
+        <i class="fas fa-qrcode"></i>
+        <strong>Mesa detectada:</strong> {{ request.session.selected_table.table_name }} ha sido seleccionada automáticamente.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.querySelector('.checkout-container').insertBefore(tableAlert, document.querySelector('.checkout-container').firstChild);
+    {% endif %}
+    
+    // Validación del formulario con logs persistentes
+    document.getElementById('checkout-form').addEventListener('submit', function(e) {
+        // Configurar consola para que mantenga logs
+        console.clear();
+        console.log('%c🚀 CHECKOUT INICIADO', 'background: blue; color: white; font-size: 16px; padding: 4px;');
+        
+        const selectedType = orderTypeSelect.value;
+        const customerName = document.getElementById('id_customer_name').value;
+        const customerPhone = document.getElementById('id_customer_phone').value;
+        
+        console.log('📋 Datos del formulario:');
+        console.log('   - Tipo seleccionado:', selectedType);
+        console.log('   - Nombre:', customerName);
+        console.log('   - Teléfono:', customerPhone);
+        
+        // Validar campos obligatorios básicos
+        if (!customerName.trim()) {
+            console.log('%c❌ ERROR: Nombre requerido', 'color: red; font-weight: bold;');
+            alert('Por favor ingresa tu nombre.');
+            document.getElementById('id_customer_name').focus();
+            e.preventDefault();
+            return false;
+        }
+        
+        if (!customerPhone.trim()) {
+            console.log('%c❌ ERROR: Teléfono requerido', 'color: red; font-weight: bold;');
+            alert('Por favor ingresa tu teléfono.');
+            document.getElementById('id_customer_phone').focus();
+            e.preventDefault();
+            return false;
+        }
+        
+        // Validaciones condicionales
+        if (selectedType === 'dine_in') {
+            const tableNumber = document.getElementById('id_table_number').value;
+            console.log('   - Mesa:', tableNumber);
+            if (!tableNumber.trim()) {
+                console.log('%c❌ ERROR: Mesa requerida para dine_in', 'color: red; font-weight: bold;');
+                alert('Por favor ingresa el número de mesa.');
+                document.getElementById('id_table_number').focus();
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        if (selectedType === 'delivery') {
+            const deliveryAddress = document.getElementById('id_delivery_address').value;
+            console.log('   - Dirección:', deliveryAddress);
+            if (!deliveryAddress.trim()) {
+                console.log('%c❌ ERROR: Dirección requerida para delivery', 'color: red; font-weight: bold;');
+                alert('Por favor ingresa la dirección de entrega.');
+                document.getElementById('id_delivery_address').focus();
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        console.log('%c✅ VALIDACIÓN PASADA - ENVIANDO FORMULARIO', 'background: green; color: white; font-size: 14px; padding: 2px;');
+        console.log('🔄 Formulario siendo enviado...');
+        
+        // Agregar timeout para ver si hay errores después del envío
+        setTimeout(() => {
+            console.log('⏰ 3 segundos después del envío - Si ves esto, hubo un error en el servidor');
+        }, 3000);
+        
+        // Permitir que el formulario se envíe normalmente
+        return true;
+    });
+});
+</script>
+{% endblock %} 

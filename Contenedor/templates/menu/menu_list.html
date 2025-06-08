@@ -1,0 +1,248 @@
+{% extends 'restaurants/base.html' %}
+{% load tenant_tags %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header del menú -->
+    <div class="row">
+        <div class="col-12">
+            <div class="menu-header text-center mb-5" style="background: linear-gradient(135deg, {{ tenant.primary_color }}, #0056b3); color: white; padding: 3rem; border-radius: 15px;">
+                {% if tenant.logo %}
+                    <img src="{{ tenant.logo.url }}" alt="{{ restaurant.name }}" style="height: 60px; margin-bottom: 1rem;">
+                {% endif %}
+                <h1 class="display-4 mb-2">{{ restaurant.name }}</h1>
+                <p class="lead">Nuestro Delicioso Menú</p>
+                {% if show_qr_info %}
+                    <small class="d-block mt-3">
+                        📱 ¡Escaneaste el código QR! Puedes realizar tu pedido desde aquí.
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Productos destacados -->
+    {% if featured_items %}
+    <div class="row mb-5">
+        <div class="col-12">
+            <h2 class="text-center mb-4" style="color: {{ tenant.primary_color }};">⭐ Productos Destacados</h2>
+            <div class="row">
+                {% for item in featured_items %}
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="card h-100 shadow-sm border-0" style="border-left: 4px solid {{ tenant.primary_color }} !important;">
+                        {% if item.image %}
+                            <img src="{{ item.image.url }}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ item.name }}">
+                        {% else %}
+                            <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 200px; background-color: #f8f9fa;">
+                                <i class="fas fa-utensils fa-3x text-muted"></i>
+                            </div>
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title">{{ item.name }}</h5>
+                            <p class="card-text text-muted">{{ item.short_description }}</p>
+                            
+                            <!-- Tags dietéticos -->
+                            <div class="mb-2">
+                                {% if item.is_vegetarian %}
+                                    <span class="badge badge-success">🥗 Vegetariano</span>
+                                {% endif %}
+                                {% if item.is_vegan %}
+                                    <span class="badge badge-info">🌱 Vegano</span>
+                                {% endif %}
+                                {% if item.is_gluten_free %}
+                                    <span class="badge badge-primary">🚫 Sin Gluten</span>
+                                {% endif %}
+                                {% if item.is_spicy %}
+                                    <span class="badge badge-danger">🌶️ Picante</span>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Precio -->
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    {% if item.has_discount %}
+                                        <span class="text-muted" style="text-decoration: line-through;">${{ item.base_price }}</span>
+                                        <strong class="text-danger ml-2">${{ item.current_price }}</strong>
+                                        <small class="badge badge-danger">-{{ item.discount_percentage }}%</small>
+                                    {% else %}
+                                        <strong style="color: {{ tenant.primary_color }}; font-size: 1.2rem;">${{ item.current_price }}</strong>
+                                    {% endif %}
+                                </div>
+                                {% if item.preparation_time %}
+                                    <small class="text-muted">⏱️ {{ item.preparation_time }} min</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <a href="/{{ tenant.slug }}/menu/item/{{ item.slug }}/" class="btn btn-outline-primary btn-block" style="border-color: {{ tenant.primary_color }}; color: {{ tenant.primary_color }};">
+                                Ver Detalles
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Categorías del menú -->
+    <div class="row">
+        <div class="col-12">
+            <h2 class="text-center mb-5" style="color: {{ tenant.primary_color }};">🍽️ Nuestro Menú Completo</h2>
+        </div>
+    </div>
+
+    {% for category in categories %}
+    <div class="row mb-5">
+        <div class="col-12">
+            <!-- Header de categoría -->
+            <div class="category-header mb-4" style="background-color: {{ tenant.primary_color }}; color: white; padding: 1.5rem; border-radius: 10px;">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h3 class="mb-1">{{ category.name }}</h3>
+                        {% if category.description %}
+                            <p class="mb-0 opacity-75">{{ category.description }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-md-right">
+                        <span class="badge badge-light">{{ category.menu_items.count }} productos</span>
+                        {% if category.available_from and category.available_until %}
+                            <small class="d-block mt-1">
+                                🕒 {{ category.available_from }} - {{ category.available_until }}
+                            </small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Productos de la categoría -->
+            <div class="row">
+                {% for item in category.menu_items.all %}
+                <div class="col-lg-6 mb-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="row">
+                                {% if item.image %}
+                                <div class="col-4">
+                                    <img src="{{ item.image.url }}" class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: cover;" alt="{{ item.name }}">
+                                </div>
+                                <div class="col-8">
+                                {% else %}
+                                <div class="col-12">
+                                {% endif %}
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h5 class="card-title mb-1">{{ item.name }}</h5>
+                                        {% if not item.is_in_stock %}
+                                            <span class="badge badge-secondary">Agotado</span>
+                                        {% elif item.is_featured %}
+                                            <span class="badge badge-warning">⭐ Destacado</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <p class="card-text text-muted small">{{ item.short_description }}</p>
+                                    
+                                    <!-- Tags dietéticos mini -->
+                                    <div class="mb-2">
+                                        {% if item.is_vegetarian %}<span class="badge badge-success badge-sm">🥗</span>{% endif %}
+                                        {% if item.is_vegan %}<span class="badge badge-info badge-sm">🌱</span>{% endif %}
+                                        {% if item.is_gluten_free %}<span class="badge badge-primary badge-sm">🚫</span>{% endif %}
+                                        {% if item.is_spicy %}<span class="badge badge-danger badge-sm">🌶️</span>{% endif %}
+                                    </div>
+                                    
+                                    <!-- Precio y acciones -->
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            {% if item.has_discount %}
+                                                <span class="text-muted small" style="text-decoration: line-through;">${{ item.base_price }}</span><br>
+                                                <strong class="text-danger">${{ item.current_price }}</strong>
+                                            {% else %}
+                                                <strong style="color: {{ tenant.primary_color }};">${{ item.current_price }}</strong>
+                                            {% endif %}
+                                            {% if item.preparation_time %}
+                                                <small class="text-muted d-block">⏱️ {{ item.preparation_time }} min</small>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <a href="/{{ tenant.slug }}/menu/item/{{ item.slug }}/" class="btn btn-sm btn-outline-primary" style="border-color: {{ tenant.primary_color }}; color: {{ tenant.primary_color }};">
+                                                Ver más
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        No hay productos disponibles en esta categoría en este momento.
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-warning text-center">
+                <h4><i class="fas fa-utensils"></i> Menú en construcción</h4>
+                <p>Estamos preparando nuestro delicioso menú. ¡Vuelve pronto!</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Footer con info del restaurante -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="text-center py-4" style="background-color: #f8f9fa; border-radius: 10px;">
+                <h5 style="color: {{ tenant.primary_color }};">{{ restaurant.name }}</h5>
+                <p class="text-muted mb-2">{{ restaurant.address }}</p>
+                <p class="text-muted">📞 {{ restaurant.phone }} | ✉️ {{ restaurant.email }}</p>
+                
+                {% if restaurant.opening_time and restaurant.closing_time %}
+                    <small class="text-muted">
+                        🕒 Horario: {{ restaurant.opening_time }} - {{ restaurant.closing_time }}
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos adicionales para mejorar la apariencia */
+.badge-sm {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.card {
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.category-header {
+    background: linear-gradient(135deg, var(--tenant-primary-color, {{ tenant.primary_color }}), rgba(0,0,0,0.1));
+}
+
+@media (max-width: 768px) {
+    .menu-header {
+        padding: 2rem 1rem !important;
+    }
+    
+    .display-4 {
+        font-size: 2rem !important;
+    }
+}
+</style>
+{% endblock %} 

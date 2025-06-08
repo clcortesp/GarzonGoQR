@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Mesas - {{ restaurant.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .stats-card {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .table-card {
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            transition: transform 0.2s;
+        }
+        
+        .table-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .qr-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">{{ restaurant.name }}</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/{{ tenant.slug }}/">Inicio</a>
+                <a class="nav-link" href="/{{ tenant.slug }}/orders/dashboard/">Dashboard</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="h3">📱 Gestión de Mesas QR</h1>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTableModal">
+                        <i class="fas fa-plus"></i> Nueva Mesa
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Estadísticas -->
+        <div class="row mb-4">
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h4>{{ stats.total_tables }}</h4>
+                    <small>Total Mesas</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h4>{{ stats.active_tables }}</h4>
+                    <small>Activas</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h4>{{ stats.qr_enabled_tables }}</h4>
+                    <small>QR Habilitado</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h4>{{ stats.total_scans_today }}</h4>
+                    <small>Escaneos Hoy</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h4>{{ stats.total_scans_all_time }}</h4>
+                    <small>Escaneos Total</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h4>{{ stats.total_orders_from_qr }}</h4>
+                    <small>Pedidos QR</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Lista de Mesas -->
+        <div class="row">
+            {% for table in tables %}
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="card table-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ table.display_name }}</h5>
+                        <div>
+                            {% if table.is_active %}
+                                <span class="badge bg-success status-badge">Activa</span>
+                            {% else %}
+                                <span class="badge bg-secondary status-badge">Inactiva</span>
+                            {% endif %}
+                            
+                            {% if table.qr_enabled %}
+                                <span class="badge bg-primary status-badge">QR</span>
+                            {% else %}
+                                <span class="badge bg-warning status-badge">Sin QR</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <strong>{{ table.capacity }}</strong>
+                                <small class="d-block text-muted">Personas</small>
+                            </div>
+                            <div class="col-4">
+                                <strong>{{ table.total_scans }}</strong>
+                                <small class="d-block text-muted">Escaneos</small>
+                            </div>
+                            <div class="col-4">
+                                <strong>{{ table.total_orders }}</strong>
+                                <small class="d-block text-muted">Pedidos</small>
+                            </div>
+                        </div>
+                        
+                        {% if table.location %}
+                        <p class="text-muted mt-2 mb-0">
+                            <i class="fas fa-map-marker-alt"></i> {{ table.location }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="card-footer">
+                        <div class="qr-actions">
+                            <a href="/{{ tenant.slug }}/tables/{{ table.id }}/qr/preview/" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i> Ver QR
+                            </a>
+                            
+                            <a href="/{{ tenant.slug }}/tables/{{ table.id }}/qr/" 
+                               class="btn btn-sm btn-primary" download>
+                                <i class="fas fa-download"></i> Descargar
+                            </a>
+                            
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="copyQRUrl('{{ table.full_qr_url }}')">
+                                <i class="fas fa-copy"></i> Copiar URL
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="fas fa-table fa-3x text-muted mb-3"></i>
+                    <h4>No hay mesas configuradas</h4>
+                    <p class="text-muted">Crea tu primera mesa para empezar a usar códigos QR</p>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTableModal">
+                        <i class="fas fa-plus"></i> Crear Primera Mesa
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Modal para crear mesa -->
+    <div class="modal fade" id="createTableModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva Mesa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <form id="createTableForm">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Número de Mesa *</label>
+                            <input type="text" name="number" class="form-control" required 
+                                   placeholder="Ej: 1, A1, VIP01">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Nombre Descriptivo</label>
+                            <input type="text" name="name" class="form-control" 
+                                   placeholder="Ej: Mesa Terraza, VIP Principal">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Capacidad</label>
+                            <select name="capacity" class="form-control">
+                                <option value="2">2 personas</option>
+                                <option value="4" selected>4 personas</option>
+                                <option value="6">6 personas</option>
+                                <option value="8">8 personas</option>
+                                <option value="10">10+ personas</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Ubicación</label>
+                            <input type="text" name="location" class="form-control" 
+                                   placeholder="Ej: Terraza, Interior, Salón principal">
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Crear Mesa</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Crear nueva mesa
+    document.getElementById('createTableForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        
+        fetch("/{{ tenant.slug }}/tables/create/", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error al crear la mesa');
+        });
+    });
+
+    // Copiar URL del QR
+    function copyQRUrl(url) {
+        navigator.clipboard.writeText(url).then(function() {
+            alert('URL copiada al portapapeles: ' + url);
+        }).catch(function(err) {
+            alert('Error al copiar: ' + err);
+        });
+    }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,56 @@
+{% extends 'restaurants/base.html' %}
+{% load tenant_tags %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow">
+                <div class="card-header text-center" style="background-color: {{ tenant.primary_color }}; color: white;">
+                    <h4>
+                        {% if tenant.logo %}
+                            <img src="{{ tenant.logo.url }}" alt="{{ restaurant.name }}" style="height: 40px;" class="me-2">
+                        {% endif %}
+                        Iniciar Sesión
+                    </h4>
+                    <small>{{ restaurant.name }}</small>
+                </div>
+                <div class="card-body">
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            {{ form.errors }}
+                        </div>
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="{{ form.username.id_for_label }}" class="form-label">Usuario</label>
+                            {{ form.username }}
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ form.password.id_for_label }}" class="form-label">Contraseña</label>
+                            {{ form.password }}
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary" style="background-color: {{ tenant.primary_color }}; border-color: {{ tenant.primary_color }};">
+                                Ingresar al Dashboard
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="text-center mt-3">
+                        <small class="text-muted">
+                            <a href="/{{ tenant.slug }}/" style="color: {{ tenant.primary_color }};">
+                                ← Volver al menú público
+                            </a>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

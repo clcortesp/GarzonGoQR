@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - {{ restaurant.name }}</title>
+    {% load tenant_tags %}
+    
+    <!-- Meta tags personalizados -->
+    {% tenant_meta_tags %}
+    
+    <!-- CSS Variables dinámicas -->
+    {% tenant_css_vars %}
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--tenant-primary-color, #007bff), #0056b3);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .logo {
+            max-height: 80px;
+            margin-bottom: 1rem;
+        }
+        
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .nav-link {
+            background-color: var(--tenant-primary-color, #007bff);
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        
+        .nav-link:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .info-card {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--tenant-primary-color, #007bff);
+        }
+        
+        .debug-info {
+            background-color: #e9ecef;
+            padding: 1rem;
+            border-radius: 5px;
+            margin-top: 2rem;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% if tenant.logo %}
+            <img src="{% tenant_logo %}" alt="{{ restaurant.name }} Logo" class="logo">
+        {% endif %}
+        <h1>{{ restaurant.name }}</h1>
+        <p>{{ restaurant.address }}</p>
+    </div>
+
+    <div class="content">
+        <h2>¡Bienvenido a {{ restaurant.name }}!</h2>
+        <p>Sistema de menú digital funcionando correctamente.</p>
+        
+        <div class="nav-links">
+            <a href="/{{ tenant.slug }}/menu/" class="nav-link">🍽️ Ver Menú</a>
+            <a href="/{{ tenant.slug }}/cart/" class="nav-link">🛒 Carrito</a>
+            <a href="/{{ tenant.slug }}/scan/DEMO123/" class="nav-link">📱 QR Demo</a>
+            
+            {% if user.is_authenticated %}
+                <!-- Usuario logueado - mostrar opciones de administración -->
+                <a href="/{{ tenant.slug }}/dashboard/" class="nav-link">📊 Dashboard General</a>
+                <a href="/{{ tenant.slug }}/orders/dashboard/" class="nav-link">📋 Gestión de Pedidos</a>
+                <a href="/{{ tenant.slug }}/logout/" class="nav-link" style="background-color: #6c757d;">🚪 Cerrar Sesión</a>
+            {% else %}
+                <!-- Usuario no logueado - mostrar botón de login -->
+                <a href="/{{ tenant.slug }}/login/" class="nav-link" style="background-color: #28a745;">🔑 Acceso Administrador</a>
+            {% endif %}
+        </div>
+        
+        <div class="info-grid">
+            <div class="info-card">
+                <h4>📞 Contacto</h4>
+                <p><strong>Teléfono:</strong> {{ restaurant.phone }}</p>
+                <p><strong>Email:</strong> {{ restaurant.email }}</p>
+            </div>
+            
+            <div class="info-card">
+                <h4>🕒 Horarios</h4>
+                {% if restaurant.opening_time and restaurant.closing_time %}
+                    <p><strong>Abierto:</strong> {{ restaurant.opening_time }} - {{ restaurant.closing_time }}</p>
+                {% else %}
+                    <p>Horarios no configurados</p>
+                {% endif %}
+            </div>
+            
+            <div class="info-card">
+                <h4>🎨 Branding</h4>
+                <p><strong>Color:</strong> 
+                    <span style="background-color: {% tenant_color 'primary' %}; color: white; padding: 2px 8px; border-radius: 3px;">
+                        {% tenant_color 'primary' %}
+                    </span>
+                </p>
+                <p><strong>Plan:</strong> {{ tenant.subscription_plan }}</p>
+            </div>
+        </div>
+        
+        <!-- Información de debug -->
+        <div class="debug-info">
+            <strong>🔧 Info Debug (Multi-Tenant):</strong><br>
+            <strong>Tenant Slug:</strong> {{ tenant.slug }}<br>
+            <strong>Tenant Status:</strong> {{ tenant.status }}<br>
+            <strong>URL Actual:</strong> {{ request.get_full_path }}<br>
+            <strong>Middleware:</strong> ✅ Funcionando correctamente
+        </div>
+    </div>
+</body>
+</html> 

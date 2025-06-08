@@ -1,0 +1,339 @@
+{% extends 'restaurants/base.html' %}
+{% load humanize %}
+
+{% block title %}Dashboard de Pedidos - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .stats-cards {
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        border: none;
+        color: white;
+        text-align: center;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    .orders-table {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .table-header {
+        background: #f8f9fa;
+        padding: 20px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .status-badge {
+        font-size: 0.85em;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    
+    .status-pending { background: #fff3cd; color: #856404; }
+    .status-confirmed { background: #d1ecf1; color: #0c5460; }
+    .status-preparing { background: #ffeaa7; color: #e17055; }
+    .status-ready { background: #d4edda; color: #155724; }
+    .status-delivered { background: #e2e3e5; color: #383d41; }
+    .status-cancelled { background: #f8d7da; color: #721c24; }
+    
+    .order-row {
+        border-bottom: 1px solid #f8f9fa;
+        transition: background-color 0.2s;
+    }
+    
+    .order-row:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .order-number {
+        font-weight: 600;
+        color: #28a745;
+    }
+    
+    .customer-info {
+        font-size: 0.9em;
+    }
+    
+    .order-items {
+        max-width: 250px;
+        font-size: 0.85em;
+    }
+    
+    .btn-update-status {
+        font-size: 0.8em;
+        padding: 4px 8px;
+    }
+    
+    .filters-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .refresh-indicator {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        display: none;
+    }
+    
+    @media (max-width: 768px) {
+        .dashboard-container {
+            padding: 10px;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+        }
+        
+        .table-responsive {
+            font-size: 0.85em;
+        }
+        
+        .order-items {
+            max-width: 150px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">
+        <i class="fas fa-tachometer-alt"></i>
+        Dashboard de Pedidos
+    </h1>
+    
+    <!-- Estadísticas del día -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-center bg-primary text-white">
+                <div class="card-body">
+                    <h3>{{ today_stats.total_orders }}</h3>
+                    <p>Pedidos Hoy</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center bg-warning text-dark">
+                <div class="card-body">
+                    <h3>{{ today_stats.pending_orders }}</h3>
+                    <p>Pendientes</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center bg-info text-white">
+                <div class="card-body">
+                    <h3>{{ today_stats.confirmed_orders }}</h3>
+                    <p>Confirmados</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center bg-orange text-white">
+                <div class="card-body">
+                    <h3>{{ today_stats.preparing_orders }}</h3>
+                    <p>Preparando</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center bg-success text-white">
+                <div class="card-body">
+                    <h3>{{ today_stats.ready_orders }}</h3>
+                    <p>Listos</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center bg-secondary text-white">
+                <div class="card-body">
+                    <h3>${{ today_stats.total_revenue|floatformat:0|intcomma }}</h3>
+                    <p>Ingresos</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Estado:</label>
+                    <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+                        <option value="all" {% if current_status == 'all' %}selected{% endif %}>Todos</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="order_type" class="form-label">Tipo:</label>
+                    <select name="order_type" id="order_type" class="form-select" onchange="this.form.submit()">
+                        <option value="all" {% if current_order_type == 'all' %}selected{% endif %}>Todos</option>
+                        {% for value, label in order_type_choices %}
+                        <option value="{{ value }}" {% if current_order_type == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Lista de pedidos -->
+    <div class="card">
+        <div class="card-header">
+            <h4>Pedidos Recientes</h4>
+        </div>
+        <div class="card-body">
+            {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Pedido</th>
+                            <th>Cliente</th>
+                            <th>Productos</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                            <th>Hora</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>
+                                <strong>#{{ order.order_number }}</strong><br>
+                                <small>{{ order.get_order_type_display }}</small>
+                            </td>
+                            <td>
+                                {{ order.customer_name }}<br>
+                                <small>{{ order.customer_phone }}</small>
+                            </td>
+                            <td>
+                                {% for item in order.items.all|slice:":2" %}
+                                    {{ item.quantity }}x {{ item.menu_item.name }}<br>
+                                {% endfor %}
+                                {% if order.total_items > 2 %}
+                                    <small>y {{ order.total_items|add:"-2" }} más...</small>
+                                {% endif %}
+                            </td>
+                            <td>${{ order.total_amount|floatformat:0|intcomma }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if order.status == 'pending' %}bg-warning
+                                    {% elif order.status == 'confirmed' %}bg-info
+                                    {% elif order.status == 'preparing' %}bg-primary
+                                    {% elif order.status == 'ready' %}bg-success
+                                    {% elif order.status == 'delivered' %}bg-secondary
+                                    {% elif order.status == 'cancelled' %}bg-danger
+                                    {% endif %}">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </td>
+                            <td>{{ order.created_at|time:"H:i" }}</td>
+                            <td>
+                                <a href="{% url 'orders:order_detail' tenant_slug=request.tenant.slug order_id=order.id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    Ver
+                                </a>
+                                {% if order.status != 'delivered' and order.status != 'cancelled' %}
+                                <button class="btn btn-sm btn-outline-success" 
+                                        onclick="updateStatus('{{ order.id }}', '{{ order.status }}')">
+                                    Siguiente
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h4>No hay pedidos</h4>
+                <p class="text-muted">No se encontraron pedidos con los filtros seleccionados.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateStatus(orderId, currentStatus) {
+    const statusFlow = {
+        'pending': 'confirmed',
+        'confirmed': 'preparing',
+        'preparing': 'ready',
+        'ready': 'delivered'
+    };
+    
+    const nextStatus = statusFlow[currentStatus];
+    if (!nextStatus) return;
+    
+    if (confirm('¿Actualizar el estado del pedido?')) {
+        fetch(`/{{ request.tenant.slug }}/orders/update-status/${orderId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `status=${nextStatus}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
+}
+
+// Auto-refresh cada 30 segundos
+setInterval(() => {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %} 
