@@ -44,6 +44,7 @@ class Order(models.Model):
     # Relaciones
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='orders')
     customer_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    table = models.ForeignKey('restaurants.Table', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     
     # Información del cliente
     customer_name = models.CharField(max_length=100)
@@ -52,7 +53,7 @@ class Order(models.Model):
     
     # Detalles del pedido
     order_type = models.CharField(max_length=20, choices=ORDER_TYPE_CHOICES, default='dine_in')
-    table_number = models.CharField(max_length=10, blank=True, help_text="Número de mesa (si aplica)")
+    table_number = models.CharField(max_length=10, blank=True, help_text="Número de mesa (si aplica) - Deprecated: usar table")
     delivery_address = models.TextField(blank=True, help_text="Dirección de entrega (si aplica)")
     
     # Estado y timing

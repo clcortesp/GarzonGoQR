@@ -1,0 +1,299 @@
+{% extends 'restaurants/admin/base.html' %}
+
+{% block content %}
+<!-- Header Row -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h3>
+            <i class="bi bi-{% if item %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+            {% if item %}Editar Producto{% else %}Agregar Producto{% endif %}
+        </h3>
+        <p class="text-muted">
+            {% if item %}
+                Modifica la información del producto "{{ item.name }}"
+            {% else %}
+                Agrega un nuevo producto al menú de tu restaurante
+            {% endif %}
+        </p>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'restaurants:admin_menu' tenant_slug=restaurant.tenant.slug %}" 
+           class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>
+            Volver al Menú
+        </a>
+    </div>
+</div>
+
+<!-- Form Row -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Información del Producto</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">
+                                Nombre del Producto *
+                            </label>
+                            <input type="text" class="form-control" name="name" 
+                                   value="{{ item.name|default:'' }}" 
+                                   placeholder="Nombre del producto" required>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                Categoría *
+                            </label>
+                            <select class="form-select" name="category" required>
+                                <option value="">Seleccionar categoría...</option>
+                                {% for category in categories %}
+                                    <option value="{{ category.id }}" 
+                                            {% if item and item.category.id == category.id %}selected{% endif %}>
+                                        {{ category.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Descripción
+                        </label>
+                        <textarea class="form-control" name="description" rows="3" 
+                                  placeholder="Descripción del producto...">{{ item.description|default:'' }}</textarea>
+                        <div class="form-text">
+                            Descripción opcional del producto que se mostrará a los clientes
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Precio Base *
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" name="base_price" 
+                                       value="{{ item.base_price|default:'' }}" 
+                                       step="0.01" min="0" placeholder="0.00" required>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Tiempo de Preparación (minutos)
+                            </label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" name="preparation_time" 
+                                       value="{{ item.preparation_time|default:'' }}" 
+                                       min="0" placeholder="15">
+                                <span class="input-group-text">min</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Imagen del Producto
+                        </label>
+                        <input type="file" class="form-control" name="image" 
+                               accept="image/jpeg,image/png,image/gif">
+                        {% if item.image %}
+                            <div class="mt-2">
+                                <small class="text-muted">Imagen actual:</small><br>
+                                <img src="{{ item.image.url }}" 
+                                     class="img-thumbnail mt-1" 
+                                     style="max-width: 150px; max-height: 150px;">
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Formatos permitidos: JPG, PNG, GIF (máximo 5MB)
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="is_available" 
+                                   {% if not item or item.is_available %}checked{% endif %}>
+                            <label class="form-check-label">
+                                Producto disponible para venta
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Los productos no disponibles no aparecerán en el menú del cliente
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'restaurants:admin_menu' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-1"></i>
+                            {% if item %}Actualizar Producto{% else %}Crear Producto{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Preview Sidebar -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-eye me-2"></i>
+                    Vista Previa
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="menu-item-preview">
+                    <div class="preview-image mb-3">
+                        {% if item.image %}
+                            <img src="{{ item.image.url }}" 
+                                 class="img-fluid rounded" 
+                                 style="width: 100%; height: 200px; object-fit: cover;">
+                        {% else %}
+                            <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                                 style="width: 100%; height: 200px;">
+                                <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <h6 class="preview-name">
+                        {{ item.name|default:"Nombre del Producto" }}
+                    </h6>
+                    
+                    <p class="text-muted small preview-description">
+                        {{ item.description|default:"Descripción del producto..." }}
+                    </p>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="h5 text-success mb-0 preview-price">
+                            ${{ item.base_price|default:"0" }}
+                        </span>
+                        
+                        {% if item.preparation_time %}
+                            <small class="text-muted">
+                                <i class="bi bi-clock me-1"></i>
+                                {{ item.preparation_time }} min
+                            </small>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mt-2">
+                        {% if not item or item.is_available %}
+                            <span class="badge bg-success">Disponible</span>
+                        {% else %}
+                            <span class="badge bg-danger">No disponible</span>
+                        {% endif %}
+                        
+                        {% if item and item.category %}
+                            <span class="badge bg-light text-dark ms-1">
+                                {{ item.category.name }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tips Card -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-lightbulb me-2"></i>
+                    Consejos
+                </h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Usa nombres descriptivos y atractivos
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Incluye una descripción detallada
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Sube una imagen de alta calidad
+                    </li>
+                    <li>
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Establece precios competitivos
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Live preview updates
+document.addEventListener('DOMContentLoaded', function() {
+    const nameInput = document.getElementById('{{ form.name.id_for_label }}');
+    const descriptionInput = document.getElementById('{{ form.description.id_for_label }}');
+    const priceInput = document.getElementById('{{ form.base_price.id_for_label }}');
+    const availableInput = document.getElementById('{{ form.is_available.id_for_label }}');
+    const imageInput = document.getElementById('{{ form.image.id_for_label }}');
+    
+    const previewName = document.querySelector('.preview-name');
+    const previewDescription = document.querySelector('.preview-description');
+    const previewPrice = document.querySelector('.preview-price');
+    
+    // Update name
+    nameInput?.addEventListener('input', function() {
+        previewName.textContent = this.value || 'Nombre del Producto';
+    });
+    
+    // Update description
+    descriptionInput?.addEventListener('input', function() {
+        previewDescription.textContent = this.value || 'Descripción del producto...';
+    });
+    
+    // Update price
+    priceInput?.addEventListener('input', function() {
+        const price = this.value || '0';
+        previewPrice.textContent = '$' + price;
+    });
+    
+    // Image preview
+    imageInput?.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const previewImage = document.querySelector('.preview-image img');
+                if (previewImage) {
+                    previewImage.src = e.target.result;
+                } else {
+                    const previewContainer = document.querySelector('.preview-image');
+                    previewContainer.innerHTML = `<img src="${e.target.result}" class="img-fluid rounded" style="width: 100%; height: 200px; object-fit: cover;">`;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+});
+</script>
+{% endblock %} 

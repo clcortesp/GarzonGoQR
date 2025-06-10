@@ -27,6 +27,27 @@ class MenuListView(TenantMixin, TemplateView):
         # Debug: verificar que llegamos a la vista correcta
         print(f"🔍 MenuListView.get_context_data() ejecutándose para tenant: {getattr(self.request, 'tenant', 'NO_TENANT')}")
         
+        # 🎯 OBTENER INFORMACIÓN DE SESIÓN DE MESA
+        from restaurants.table_session_manager import TableSessionManager
+        table_session = TableSessionManager.get_active_session(self.request)
+        
+        # Información de mesa activa
+        active_table_info = None
+        if table_session:
+            from restaurants.models import Table
+            try:
+                table = Table.objects.get(id=table_session['table_id'])
+                active_table_info = {
+                    'number': table.number,
+                    'name': table.display_name,
+                    'location': table.location or '',
+                    'session_expires': table_session.get('expires_at'),
+                    'session_active_time': table_session.get('created_at')
+                }
+                print(f"🪑 Mesa activa detectada: {active_table_info}")
+            except Table.DoesNotExist:
+                print("❌ Mesa no encontrada en DB")
+        
         # Obtener categorías activas con sus productos
         try:
             categories = MenuCategory.objects.filter(
@@ -58,6 +79,8 @@ class MenuListView(TenantMixin, TemplateView):
             'featured_items': featured_items,
             'page_title': f'Menú - {self.request.restaurant.name}',
             'show_qr_info': True,  # Para mostrar info de QR
+            'active_table_info': active_table_info,  # 🆕 Info de mesa activa
+            'has_active_session': table_session is not None,  # 🆕 Flag de sesión
         })
         return context
 

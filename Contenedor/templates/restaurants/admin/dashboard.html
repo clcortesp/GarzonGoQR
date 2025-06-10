@@ -1,0 +1,319 @@
+{% extends 'restaurants/admin/base.html' %}
+{% load humanize %}
+
+{% block content %}
+<!-- Stats Cards Row -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <a href="#" class="stat-card bg-primary">
+            <div class="stat-value">{{ orders_today_count }}</div>
+            <div class="stat-label">
+                <i class="bi bi-receipt me-1"></i>
+                Pedidos Hoy
+            </div>
+        </a>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stat-card bg-success">
+            <div class="stat-value">${{ sales_today|floatformat:0 }}</div>
+            <div class="stat-label">
+                <i class="bi bi-currency-dollar me-1"></i>
+                Ventas Hoy
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" class="stat-card bg-info">
+            <div class="stat-value">{{ active_waiters_count }}</div>
+            <div class="stat-label">
+                <i class="bi bi-people me-1"></i>
+                Garzones Activos
+            </div>
+        </a>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <a href="{% url 'restaurants:admin_tables' tenant_slug=restaurant.tenant.slug %}" class="stat-card bg-warning">
+            <div class="stat-value">{{ total_tables }}</div>
+            <div class="stat-label">
+                <i class="bi bi-grid-3x3 me-1"></i>
+                Total Mesas
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Weekly Stats Row -->
+<div class="row mb-4">
+    <div class="col-xl-4 col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h6 class="card-title text-muted">Esta Semana</h6>
+                <h3 class="text-primary">{{ orders_week_count }}</h3>
+                <p class="text-muted mb-0">Pedidos</p>
+                <h4 class="text-success mt-2">${{ sales_week|floatformat:0|intcomma }}</h4>
+                <p class="text-muted mb-0">Ventas</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-4 col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h6 class="card-title text-muted">Este Mes</h6>
+                <h3 class="text-primary">{{ orders_month_count }}</h3>
+                <p class="text-muted mb-0">Pedidos</p>
+                <h4 class="text-success mt-2">${{ sales_month|floatformat:0|intcomma }}</h4>
+                <p class="text-muted mb-0">Ventas</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-4 col-md-12 mb-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h6 class="card-title text-muted">Promedio por Pedido</h6>
+                {% if orders_today_count > 0 and sales_today > 0 %}
+                    <h3 class="text-info">${{ avg_order_today|floatformat:0|default:"0" }}</h3>
+                {% else %}
+                    <h3 class="text-muted">$0</h3>
+                {% endif %}
+                <p class="text-muted mb-0">Hoy</p>
+                
+                {% if orders_month_count > 0 and sales_month > 0 %}
+                    <h4 class="text-secondary mt-2">${{ avg_order_month|floatformat:0|default:"0" }}</h4>
+                {% else %}
+                    <h4 class="text-muted mt-2">$0</h4>
+                {% endif %}
+                <p class="text-muted mb-0">Este Mes</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alerts Row -->
+{% if alerts.tables_without_waiter > 0 or alerts.inactive_waiters > 0 %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Alertas del Sistema
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if alerts.tables_without_waiter > 0 %}
+                    <div class="alert alert-warning d-flex align-items-center" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-3"></i>
+                        <div>
+                            <strong>{{ alerts.tables_without_waiter }} mesa{{ alerts.tables_without_waiter|pluralize:"s" }} sin garzón asignado</strong>
+                            <br>
+                            <small>Es recomendable asignar un garzón a cada mesa para el sistema de notificaciones.</small>
+                        </div>
+                        <a href="{% url 'restaurants:admin_tables' tenant_slug=restaurant.tenant.slug %}" class="btn btn-sm btn-warning ms-auto">
+                            Gestionar Mesas
+                        </a>
+                    </div>
+                {% endif %}
+                
+                {% if alerts.inactive_waiters > 0 %}
+                    <div class="alert alert-info d-flex align-items-center" role="alert">
+                        <i class="bi bi-info-circle-fill me-3"></i>
+                        <div>
+                            <strong>{{ alerts.inactive_waiters }} garzón{{ alerts.inactive_waiters|pluralize:"es" }} inactivo{{ alerts.inactive_waiters|pluralize:"s" }}</strong>
+                            <br>
+                            <small>Revisa el estado de tus garzones para mantener el servicio óptimo.</small>
+                        </div>
+                        <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" class="btn btn-sm btn-info ms-auto">
+                            Gestionar Garzones
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Main Content Row -->
+<div class="row">
+    <!-- Pedidos Pendientes -->
+    <div class="col-xl-8 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock me-2"></i>
+                    Pedidos Pendientes
+                </h5>
+                <a href="/{{ restaurant.tenant.slug }}/orders/restaurant-orders/" class="btn btn-sm btn-light">
+                    Ver Todos
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% if pending_orders %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Pedido</th>
+                                    <th>Cliente</th>
+                                    <th>Mesa</th>
+                                    <th>Estado</th>
+                                    <th>Total</th>
+                                    <th>Hora</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in pending_orders %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ order.order_number }}</strong>
+                                        </td>
+                                        <td>{{ order.customer_name }}</td>
+                                        <td>
+                                            {% if order.table %}
+                                                <span class="badge bg-primary">Mesa {{ order.table.number }}</span>
+                                            {% elif order.table_number %}
+                                                <span class="badge bg-secondary">Mesa {{ order.table_number }}</span>
+                                            {% else %}
+                                                <span class="badge bg-info">{{ order.get_order_type_display }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if order.status == 'pending' %}
+                                                <span class="badge bg-warning">{{ order.get_status_display }}</span>
+                                            {% elif order.status == 'confirmed' %}
+                                                <span class="badge bg-info">{{ order.get_status_display }}</span>
+                                            {% elif order.status == 'preparing' %}
+                                                <span class="badge bg-primary">{{ order.get_status_display }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <strong>${{ order.total_amount|floatformat:0|intcomma }}</strong>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ order.created_at|date:"H:i" }}</small>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3 text-muted">¡No hay pedidos pendientes!</h5>
+                        <p class="text-muted">Todos los pedidos están al día.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Productos Más Vendidos -->
+    <div class="col-xl-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-trophy me-2"></i>
+                    Top Productos (30 días)
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if top_products %}
+                    <div class="list-group list-group-flush">
+                        {% for product in top_products|slice:":5" %}
+                            <div class="list-group-item d-flex justify-content-between align-items-start">
+                                <div class="me-auto">
+                                    <div class="fw-bold">{{ product.menu_item__name|truncatechars:20 }}</div>
+                                    <small class="text-muted">{{ product.total_quantity }} vendido{{ product.total_quantity|pluralize:"s" }}</small>
+                                </div>
+                                <span class="badge bg-success rounded-pill">
+                                    ${{ product.total_revenue|floatformat:0|intcomma }}
+                                </span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-graph-up text-muted" style="font-size: 2rem;"></i>
+                        <p class="text-muted mt-2 mb-0">No hay datos suficientes</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions Row -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning me-2"></i>
+                    Acciones Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'restaurants:admin_menu_create' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-outline-primary w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="bi bi-plus-circle mb-2" style="font-size: 2rem;"></i>
+                            <span>Agregar Producto</span>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'restaurants:admin_waiters_create' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-outline-success w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="bi bi-person-plus mb-2" style="font-size: 2rem;"></i>
+                            <span>Agregar Garzón</span>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'restaurants:admin_tables_create' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-outline-info w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="bi bi-grid-3x3-gap mb-2" style="font-size: 2rem;"></i>
+                            <span>Agregar Mesa</span>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'restaurants:admin_sales_report' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-outline-warning w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="bi bi-graph-up mb-2" style="font-size: 2rem;"></i>
+                            <span>Ver Reportes</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh cada 30 segundos para pedidos pendientes
+setTimeout(() => {
+    location.reload();
+}, 30000);
+
+// Mostrar hora actual
+function updateTime() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('es-CL');
+    document.title = `{{ page_title }} - {{ restaurant.name }} (${timeString})`;
+}
+
+setInterval(updateTime, 1000);
+</script>
+{% endblock %} 

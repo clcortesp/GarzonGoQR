@@ -82,7 +82,7 @@ class OrderAdmin(admin.ModelAdmin):
     def view_link(self, obj):
         if obj.pk:
             url = reverse('orders:order_detail', kwargs={
-                'tenant_slug': obj.restaurant.slug,
+                'tenant_slug': obj.restaurant.tenant.slug,
                 'order_id': obj.id
             })
             return format_html('<a href="{}" target="_blank">Ver Pedido</a>', url)
@@ -90,7 +90,7 @@ class OrderAdmin(admin.ModelAdmin):
     view_link.short_description = 'Ver'
     
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('restaurant', 'customer_user')
+        return super().get_queryset(request).select_related('restaurant__tenant', 'customer_user')
 
 
 @admin.register(OrderItem)

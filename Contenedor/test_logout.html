@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Logout</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .btn { padding: 10px 20px; margin: 10px; text-decoration: none; background: #007bff; color: white; border-radius: 5px; display: inline-block; }
+        .btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Test de Logout</h1>
+    
+    <p><strong>Estado de usuario:</strong> 
+        {% if user.is_authenticated %}
+            ✅ Logueado como: {{ user.username }}
+        {% else %}
+            ❌ No logueado
+        {% endif %}
+    </p>
+    
+    <h3>Opciones de Logout:</h3>
+    <a href="/cafe-espresso/logout/" class="btn">Logout Normal</a>
+    <a href="/cafe-espresso/logout-simple/" class="btn">Logout Simple</a>
+    
+    <h3>Otras opciones:</h3>
+    <a href="/cafe-espresso/" class="btn">Ir al Home</a>
+    <a href="/cafe-espresso/login/" class="btn">Login</a>
+</body>
+</html> 

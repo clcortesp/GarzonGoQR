@@ -1,0 +1,201 @@
+{% extends 'restaurants/admin/base.html' %}
+
+{% block content %}
+<!-- Header Row -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h3>
+            <i class="bi bi-{% if table %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+            {% if table %}Editar Mesa {{ table.number }}{% else %}Agregar Mesa{% endif %}
+        </h3>
+        <p class="text-muted">
+            {% if table %}
+                Modifica la información de la mesa {{ table.number }}
+            {% else %}
+                Agrega una nueva mesa al restaurante
+            {% endif %}
+        </p>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'restaurants:admin_tables' tenant_slug=restaurant.tenant.slug %}" 
+           class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>
+            Volver a Mesas
+        </a>
+    </div>
+</div>
+
+<!-- Form Row -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Información de la Mesa</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Número de Mesa *</label>
+                            <input type="text" class="form-control" name="number" 
+                                   value="{{ table.number|default:'' }}" 
+                                   placeholder="Ej: 1, A1, Terraza-1" required>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">Capacidad *</label>
+                            <select class="form-select" name="capacity" required>
+                                <option value="">Seleccionar...</option>
+                                {% for i in "123456789"|make_list %}
+                                    <option value="{{ i }}" {% if table.capacity == i|add:0 %}selected{% endif %}>
+                                        {{ i }} persona{{ i|pluralize:"s" }}
+                                    </option>
+                                {% endfor %}
+                                <option value="10" {% if table.capacity == 10 %}selected{% endif %}>10+ personas</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">Garzón Asignado</label>
+                            <select class="form-select" name="assigned_waiter">
+                                <option value="">Sin asignar</option>
+                                {% for waiter in waiters %}
+                                    <option value="{{ waiter.id }}" 
+                                            {% if table.assigned_waiter.id == waiter.id %}selected{% endif %}>
+                                        {{ waiter.full_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nombre Descriptivo</label>
+                            <input type="text" class="form-control" name="name" 
+                                   value="{{ table.name|default:'' }}" 
+                                   placeholder="Ej: Mesa Ventana, VIP 1">
+                            <div class="form-text">Nombre opcional para identificar la mesa</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Ubicación</label>
+                            <input type="text" class="form-control" name="location" 
+                                   value="{{ table.location|default:'' }}" 
+                                   placeholder="Ej: Terraza, Interior, Segundo piso">
+                            <div class="form-text">Ubicación física de la mesa</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_active" 
+                                       {% if not table or table.is_active %}checked{% endif %}>
+                                <label class="form-check-label">
+                                    Mesa activa
+                                </label>
+                            </div>
+                            <div class="form-text">Las mesas inactivas no aparecerán en el sistema</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="qr_enabled" 
+                                       {% if not table or table.qr_enabled %}checked{% endif %}>
+                                <label class="form-check-label">
+                                    Código QR habilitado
+                                </label>
+                            </div>
+                            <div class="form-text">Permite o deshabilita el código QR de la mesa</div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'restaurants:admin_tables' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-1"></i>
+                            {% if table %}Actualizar Mesa{% else %}Crear Mesa{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Info Sidebar -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    Información
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if table %}
+                    <h6>Mesa {{ table.number }}</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Capacidad:</strong> {{ table.capacity }} personas</li>
+                        <li><strong>Total escaneos:</strong> {{ table.total_scans }}</li>
+                        <li><strong>Total pedidos:</strong> {{ table.total_orders }}</li>
+                        {% if table.last_scan %}
+                            <li><strong>Último escaneo:</strong> {{ table.last_scan|date:"d/m/Y H:i" }}</li>
+                        {% endif %}
+                    </ul>
+                    
+                    {% if table.qr_code_uuid %}
+                        <hr>
+                        <h6>Código QR</h6>
+                        <div class="text-center mb-3">
+                            <small class="text-muted">UUID: {{ table.qr_code_uuid }}</small>
+                        </div>
+                        <a href="{% url 'restaurants:admin_tables_qr_download' tenant_slug=restaurant.tenant.slug table_id=table.id %}" 
+                           class="btn btn-success btn-sm w-100">
+                            <i class="bi bi-download me-1"></i>
+                            Descargar QR
+                        </a>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted">Una vez creada la mesa, aquí aparecerán las estadísticas y el código QR.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Tips Card -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-lightbulb me-2"></i>
+                    Consejos
+                </h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Usa números o códigos claros para identificar las mesas
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Asigna un garzón a cada mesa para las notificaciones
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Especifica la ubicación física para facilitar el servicio
+                    </li>
+                    <li>
+                        <i class="bi bi-check-circle text-success me-2"></i>
+                        Imprime y coloca el código QR en un lugar visible
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

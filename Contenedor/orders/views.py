@@ -10,7 +10,8 @@ from django.db import transaction
 from decimal import Decimal
 import logging
 
-from restaurants.models import Restaurant
+from restaurants.models import Restaurant, Table
+from restaurants.waiter_notifications import WaiterNotificationService
 from menu.cart import Cart
 from .models import Order, OrderItem, OrderStatusHistory
 from .forms import CheckoutForm, OrderStatusUpdateForm, CustomerReviewForm
@@ -35,19 +36,47 @@ class CheckoutView(object):
             # Verificar que el carrito no esté vacío
             if not cart:
                 messages.warning(request, 'Tu carrito está vacío. Agrega algunos productos antes de continuar.')
-                return redirect('menu:menu_list', tenant_slug=tenant_slug)
+                return redirect(f'/{tenant_slug}/menu/')
+            
+            # 🎯 DETECTAR SESIÓN DE MESA ACTIVA
+            from restaurants.table_session_manager import TableSessionManager
+            table_session = TableSessionManager.get_active_session(request)
             
             # Calcular precios
             cart_data = cart.get_cart_data()
             
-            form = CheckoutForm()
+            # Crear formulario con datos pre-llenos si hay sesión de mesa
+            form_initial = {}
+            table_info = None
+            
+            if table_session:
+                # Es pedido desde mesa - pre-llenar datos
+                from restaurants.models import Table
+                try:
+                    table = Table.objects.get(id=table_session['table_id'])
+                    table_info = {
+                        'number': table.number,
+                        'name': table.display_name,
+                        'location': table.location or ''
+                    }
+                    form_initial = {
+                        'order_type': 'dine_in',  # Forzar tipo "en restaurante"
+                        'table_number': table.display_name,  # Pre-llenar mesa
+                    }
+                except Table.DoesNotExist:
+                    pass
+            
+            form = CheckoutForm(initial=form_initial)
             
             context = {
                 'restaurant': restaurant,
                 'cart': cart_data,
                 'form': form,
                 'cart_total': cart.get_total_price(),
-                'cart_count': len(cart)
+                'cart_count': len(cart),
+                'table_session': table_session,  # 🆕 Info de sesión
+                'table_info': table_info,        # 🆕 Info de mesa
+                'is_table_session': table_session is not None,  # 🆕 Flag
             }
             
             return render(request, 'orders/checkout.html', context)
@@ -55,7 +84,7 @@ class CheckoutView(object):
         except Exception as e:
             logger.error(f"Error en checkout GET: {e}")
             messages.error(request, 'Error al cargar el formulario de pedido.')
-            return redirect('menu:menu_list', tenant_slug=tenant_slug)
+            return redirect(f'/{tenant_slug}/menu/')
     
     def post(self, request, tenant_slug):
         """
@@ -195,6 +224,10 @@ def checkout(request, tenant_slug):
     print(f"🔍 Restaurant: {restaurant.name}")
     print(f"🔍 Cart items: {len(cart)}")
     
+    # 🎯 DETECTAR SESIÓN DE MESA ACTIVA
+    from restaurants.table_session_manager import TableSessionManager
+    table_session = TableSessionManager.get_active_session(request)
+    
     # Verificar que el carrito no esté vacío
     if not cart:
         messages.warning(request, 'Tu carrito está vacío. Agrega algunos productos antes de continuar.')
@@ -265,7 +298,30 @@ def checkout(request, tenant_slug):
             print("🚨 RENDERIZANDO PÁGINA CON ERRORES (esto causa el 'refresh')")
     else:
         print("🔍 GET request, showing form")
-        form = CheckoutForm()
+        
+        # 🎯 CREAR FORMULARIO CON DATOS PRE-LLENOS SI HAY SESIÓN DE MESA
+        form_initial = {}
+        table_info = None
+        
+        if table_session:
+            # Es pedido desde mesa - pre-llenar datos
+            from restaurants.models import Table
+            try:
+                table = Table.objects.get(id=table_session['table_id'])
+                table_info = {
+                    'number': table.number,
+                    'name': table.display_name,
+                    'location': table.location or ''
+                }
+                form_initial = {
+                    'order_type': 'dine_in',  # Forzar tipo "en restaurante"
+                    'table_number': table.display_name,  # Pre-llenar mesa
+                }
+                print(f"🪑 Mesa detectada en sesión: {table.display_name}")
+            except Table.DoesNotExist:
+                print("❌ Mesa no encontrada en DB")
+        
+        form = CheckoutForm(initial=form_initial)
     
     # Calcular precios
     cart_data = cart.get_cart_data()
@@ -275,7 +331,10 @@ def checkout(request, tenant_slug):
         'cart': cart_data,
         'form': form,
         'cart_total': cart.get_total_price(),
-        'cart_count': len(cart)
+        'cart_count': len(cart),
+        'table_session': table_session,  # 🆕 Info de sesión
+        'table_info': table_info,        # 🆕 Info de mesa
+        'is_table_session': table_session is not None,  # 🆕 Flag
     }
     
     print(f"🔍 Rendering template with context")
@@ -313,6 +372,35 @@ def _create_order_from_cart(form, restaurant, cart, request):
     if request.user.is_authenticated:
         order.customer_user = request.user
     
+    # 🆕 LÓGICA DE MESA Y GARZÓN
+    # Si es dine_in y hay una mesa en la sesión (por QR), asignarla
+    if form.cleaned_data['order_type'] == 'dine_in':
+        table_uuid = request.session.get('table_uuid')
+        if table_uuid:
+            try:
+                table = Table.objects.get(qr_code_uuid=table_uuid, restaurant=restaurant)
+                order.table = table
+                order.table_number = table.number  # Backward compatibility
+                
+                # Incrementar contador de pedidos de la mesa
+                table.increment_order_count()
+                
+                logger.info(f"Mesa {table.number} asignada al pedido {order.order_number}")
+            except Table.DoesNotExist:
+                logger.warning(f"Mesa con UUID {table_uuid} no encontrada")
+        
+        # Si no hay mesa de QR pero sí número de mesa manual
+        elif form.cleaned_data.get('table_number'):
+            try:
+                table = Table.objects.get(
+                    number=form.cleaned_data['table_number'], 
+                    restaurant=restaurant
+                )
+                order.table = table
+                logger.info(f"Mesa {table.number} asignada manualmente al pedido {order.order_number}")
+            except Table.DoesNotExist:
+                logger.warning(f"Mesa número {form.cleaned_data['table_number']} no existe")
+    
     order.save()
     
     # Crear items de la orden usando el iterador que incluye total_price
@@ -325,6 +413,16 @@ def _create_order_from_cart(form, restaurant, cart, request):
         new_status='pending',
         notes='Pedido creado desde el carrito'
     )
+    
+    # 🆕 NOTIFICAR AL GARZÓN
+    try:
+        notification = WaiterNotificationService.notify_new_order(order)
+        if notification:
+            logger.info(f"Notificación enviada a garzón {notification.waiter.full_name} para pedido {order.order_number}")
+        else:
+            logger.warning(f"No se pudo enviar notificación para pedido {order.order_number}")
+    except Exception as e:
+        logger.error(f"Error enviando notificación para pedido {order.order_number}: {e}")
     
     return order
 
@@ -392,10 +490,35 @@ class OrderDetailView(DetailView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['restaurant'] = self.object.restaurant
-        context['items'] = self.object.items.all().prefetch_related(
-            'selected_addons', 'selected_modifiers'
-        )
+        
+        # 🎯 DETECTAR SI CLIENTE ESTÁ EN SESIÓN DE MESA
+        from restaurants.table_session_manager import TableSessionManager
+        table_session = TableSessionManager.get_active_session(self.request)
+        
+        # Información adicional para la experiencia post-pedido
+        show_continue_ordering = False
+        table_info = None
+        
+        if table_session and self.object.table:
+            # Cliente está en sesión y pedido es de la misma mesa
+            if table_session['table_id'] == self.object.table.id:
+                show_continue_ordering = True
+                table_info = {
+                    'number': self.object.table.number,
+                    'name': self.object.table.display_name,
+                    'location': self.object.table.location or ''
+                }
+        
+        context.update({
+            'restaurant': self.object.restaurant,
+            'items': self.object.items.all().prefetch_related(
+                'selected_addons', 'selected_modifiers'
+            ),
+            'show_continue_ordering': show_continue_ordering,  # 🆕 Flag para mostrar opciones adicionales
+            'table_info': table_info,                         # 🆕 Info de mesa
+            'table_session': table_session,                   # 🆕 Sesión activa
+            'page_title': f'Pedido #{self.object.order_number} - {self.object.restaurant.name}',
+        })
         return context
 
 
@@ -507,6 +630,15 @@ def update_order_status(request, tenant_slug, order_id):
             notes=notes
         )
         
+        # 🆕 NOTIFICAR AL GARZÓN CUANDO EL PEDIDO ESTÉ LISTO
+        if new_status == 'ready':
+            try:
+                notification = WaiterNotificationService.notify_order_ready(order)
+                if notification:
+                    logger.info(f"Notificación de pedido listo enviada a garzón {notification.waiter.full_name}")
+            except Exception as e:
+                logger.error(f"Error enviando notificación de pedido listo: {e}")
+        
         return JsonResponse({
             'success': True,
             'new_status': new_status,
@@ -552,6 +684,66 @@ def redirect_to_cart(request):
     """
     tenant_slug = request.tenant.slug
     return redirect(f'/{tenant_slug}/menu/cart/')
+
+
+def my_orders(request, tenant_slug):
+    """
+    Vista para que el cliente vea sus pedidos desde la sesión de mesa
+    """
+    from restaurants.table_session_manager import TableSessionManager
+    
+    restaurant = request.restaurant
+    table_session = TableSessionManager.get_active_session(request)
+    
+    # Solo mostrar si hay sesión activa de mesa
+    if not table_session:
+        messages.warning(request, 'Necesitas estar conectado a una mesa para ver tus pedidos.')
+        return redirect(f'/{tenant_slug}/menu/')
+    
+    try:
+        from restaurants.models import Table
+        table = Table.objects.get(id=table_session['table_id'])
+        
+        # Obtener pedidos de esta sesión/mesa del día actual
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        orders = Order.objects.filter(
+            restaurant=restaurant,
+            table=table,
+            created_at__date=today
+        ).select_related('table').prefetch_related(
+            'items__menu_item',
+            'items__selected_variant',
+            'items__selected_addons',
+            'items__selected_modifiers',
+            'status_history'
+        ).order_by('-created_at')
+        
+        # Información de la mesa
+        table_info = {
+            'number': table.number,
+            'name': table.display_name,
+            'location': table.location or ''
+        }
+        
+        context = {
+            'restaurant': restaurant,
+            'orders': orders,
+            'table_info': table_info,
+            'table_session': table_session,
+            'page_title': f'Mis Pedidos - {table.display_name}',
+        }
+        
+        return render(request, 'orders/my_orders.html', context)
+        
+    except Table.DoesNotExist:
+        messages.error(request, 'Mesa no encontrada.')
+        return redirect(f'/{tenant_slug}/menu/')
+    except Exception as e:
+        logger.error(f"Error en my_orders: {e}")
+        messages.error(request, 'Error al cargar tus pedidos.')
+        return redirect(f'/{tenant_slug}/menu/')
 
 
  

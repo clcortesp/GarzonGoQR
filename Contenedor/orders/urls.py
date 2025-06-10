@@ -10,6 +10,9 @@ urlpatterns = [
     # Redirección al carrito
     path('cart/', views.redirect_to_cart, name='cart_redirect'),
     
+    # 🆕 Mis Pedidos (para clientes en sesión de mesa)
+    path('my-orders/', views.my_orders, name='my_orders'),
+    
     # Detalle de orden para cliente
     path('order/<uuid:order_id>/', views.OrderDetailView.as_view(), name='order_detail'),
     

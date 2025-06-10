@@ -105,14 +105,33 @@
                     {% if user.is_authenticated %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user"></i> {{ user.username }}
+                                {% if user_is_waiter %}
+                                    <i class="fas fa-user-tie"></i> {{ user.first_name }} (Garzón)
+                                {% else %}
+                                    <i class="fas fa-user-shield"></i> {{ user.username }} (Admin)
+                                {% endif %}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/{{ tenant.slug }}/dashboard/">
-                                    <i class="fas fa-tachometer-alt"></i> Dashboard
-                                </a></li>
+                                {% if user_is_waiter %}
+                                    <li><a class="dropdown-item" href="{% url 'restaurants:waiter_dashboard' tenant_slug=tenant.slug %}">
+                                        <i class="fas fa-chart-line"></i> Dashboard Garzón
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{% url 'restaurants:waiter_notifications' tenant_slug=tenant.slug %}">
+                                        <i class="fas fa-bell"></i> Notificaciones
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{% url 'restaurants:waiter_tables' tenant_slug=tenant.slug %}">
+                                        <i class="fas fa-table"></i> Mis Mesas
+                                    </a></li>
+                                {% else %}
+                                    <li><a class="dropdown-item" href="{% url 'restaurants:admin_dashboard' tenant_slug=tenant.slug %}">
+                                        <i class="fas fa-tachometer-alt"></i> Panel Admin
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="/{{ tenant.slug }}/orders/dashboard/">
+                                        <i class="fas fa-receipt"></i> Gestión Pedidos
+                                    </a></li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/{{ tenant.slug }}/logout/">
+                                <li><a class="dropdown-item" href="{% url 'restaurants:logout_simple' tenant_slug=tenant.slug %}">
                                     <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
                                 </a></li>
                             </ul>
