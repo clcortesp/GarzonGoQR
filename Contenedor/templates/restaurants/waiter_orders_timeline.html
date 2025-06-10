@@ -1,0 +1,218 @@
+{% extends 'restaurants/staff_base.html' %}
+{% load static %}
+
+{% block title %}��️ Mesero - Timeline{% endblock %}
+
+{% block extra_head %}
+<style>
+    .waiter-header {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    }
+    
+    .order-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+    
+    .order-header {
+        padding: 1rem 1.5rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .areas-progress {
+        padding: 1rem 1.5rem;
+        display: flex;
+        gap: 1rem;
+    }
+    
+    .area-progress {
+        flex: 1;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .progress-bar {
+        background: #e9ecef;
+        border-radius: 10px;
+        height: 8px;
+        margin: 0.5rem 0;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.3s ease;
+    }
+    
+    .progress-fill.kitchen { background: #ff6b35; }
+    .progress-fill.bar { background: #6a5acd; }
+    
+    .items-list {
+        padding: 0 1.5rem 1.5rem;
+    }
+    
+    .item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        border-left: 4px solid #ddd;
+        margin-bottom: 0.5rem;
+        border-radius: 0 5px 5px 0;
+        background: #f8f9fa;
+    }
+    
+    .item-row.ready {
+        background: #e8f5e8;
+        border-left-color: #28a745;
+    }
+    
+    .btn-serve {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        font-size: 0.8rem;
+        cursor: pointer;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="waiter-header">
+        <h1>🍽️ Timeline de Órdenes</h1>
+        <p>Mesero: {{ waiter_staff.full_name }} | {{ restaurant.name }}</p>
+    </div>
+    
+    {% if ready_items %}
+    <div class="alert alert-success">
+        <h5>🚨 Items Listos para Servir ({{ ready_items|length }})</h5>
+        {% for item in ready_items %}
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span>{{ item.quantity }}x {{ item.menu_item.name }} - Orden {{ item.order.order_number }}</span>
+            <button class="btn btn-success btn-sm" onclick="serveItem({{ item.id }})">
+                Servir
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if orders_with_timeline %}
+        {% for order_info in orders_with_timeline %}
+        <div class="order-card">
+            <div class="order-header">
+                <h5>Orden {{ order_info.order.order_number }} - {{ order_info.order.customer_name }}</h5>
+            </div>
+            
+            <div class="areas-progress">
+                {% if order_info.kitchen_progress.total > 0 %}
+                <div class="area-progress">
+                    <strong>🍳 Cocina</strong>
+                    <div class="progress-bar">
+                        <div class="progress-fill kitchen" style="width: {{ order_info.kitchen_progress.percentage }}%"></div>
+                    </div>
+                    <small>{{ order_info.kitchen_progress.ready }}/{{ order_info.kitchen_progress.total }} listos</small>
+                </div>
+                {% endif %}
+                
+                {% if order_info.bar_progress.total > 0 %}
+                <div class="area-progress">
+                    <strong>🍸 Bar</strong>
+                    <div class="progress-bar">
+                        <div class="progress-fill bar" style="width: {{ order_info.bar_progress.percentage }}%"></div>
+                    </div>
+                    <small>{{ order_info.bar_progress.ready }}/{{ order_info.bar_progress.total }} listos</small>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="items-list">
+                {% for area, items in order_info.items_by_area.items %}
+                    {% for item in items %}
+                    <div class="item-row {% if item.is_ready_for_service %}ready{% endif %}">
+                        <div>
+                            <strong>{{ item.quantity }}x {{ item.menu_item.name }}</strong>
+                            <br><small>{{ item.get_status_display }}</small>
+                        </div>
+                        
+                        {% if item.is_ready_for_service %}
+                            <button class="btn-serve" onclick="serveItem({{ item.id }})">
+                                Servir
+                            </button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <h4>No hay órdenes activas</h4>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function serveItem(itemId) {
+    fetch('/{{ restaurant.slug }}/waiter/timeline/serve/' + itemId + '/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+setInterval(() => location.reload(), 15000);
+</script>
+{% endblock %} 

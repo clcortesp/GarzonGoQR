@@ -196,6 +196,24 @@ class KitchenStaff(RestaurantEmployee):
         roles = {1: 'Cocinero Jr.', 2: 'Cocinero Sr.', 3: 'Chef'}
         return roles.get(self.priority_level, 'Cocinero')
 
+    @classmethod
+    def generate_employee_id(cls, restaurant):
+        """Genera el siguiente ID de empleado para cocina (COC001, COC002, etc.)"""
+        last_staff = cls.objects.filter(restaurant=restaurant).exclude(
+            employee_id__isnull=True
+        ).exclude(employee_id__exact='').order_by('-employee_id').first()
+        
+        if last_staff and last_staff.employee_id.startswith('COC'):
+            try:
+                last_number = int(last_staff.employee_id[3:])
+                next_number = last_number + 1
+            except (ValueError, IndexError):
+                next_number = 1
+        else:
+            next_number = 1
+        
+        return f"COC{next_number:03d}"
+
 class BarStaff(RestaurantEmployee):
     """
     Personal de bar - se encarga de preparar bebidas
@@ -248,7 +266,24 @@ class BarStaff(RestaurantEmployee):
             return 'Barman Certificado'
         return 'Preparador de Bebidas'
 
-# Mantener el modelo Waiter existente pero heredando de RestaurantEmployee
+    @classmethod
+    def generate_employee_id(cls, restaurant):
+        """Genera el siguiente ID de empleado para bar (BAR001, BAR002, etc.)"""
+        last_staff = cls.objects.filter(restaurant=restaurant).exclude(
+            employee_id__isnull=True
+        ).exclude(employee_id__exact='').order_by('-employee_id').first()
+        
+        if last_staff and last_staff.employee_id.startswith('BAR'):
+            try:
+                last_number = int(last_staff.employee_id[3:])
+                next_number = last_number + 1
+            except (ValueError, IndexError):
+                next_number = 1
+        else:
+            next_number = 1
+        
+        return f"BAR{next_number:03d}"
+
 class WaiterStaff(RestaurantEmployee):
     """
     Personal de servicio - se encarga de servir pedidos y atender mesas
@@ -274,6 +309,24 @@ class WaiterStaff(RestaurantEmployee):
     def __str__(self):
         return f"Garzón: {self.full_name} - {self.restaurant.name}"
     
+    @classmethod
+    def generate_employee_id(cls, restaurant):
+        """Genera el siguiente ID de empleado para meseros (MES001, MES002, etc.)"""
+        last_staff = cls.objects.filter(restaurant=restaurant).exclude(
+            employee_id__isnull=True
+        ).exclude(employee_id__exact='').order_by('-employee_id').first()
+        
+        if last_staff and last_staff.employee_id.startswith('MES'):
+            try:
+                last_number = int(last_staff.employee_id[3:])
+                next_number = last_number + 1
+            except (ValueError, IndexError):
+                next_number = 1
+        else:
+            next_number = 1
+        
+        return f"MES{next_number:03d}"
+
     @property
     def assigned_tables_count(self):
         """Número de mesas asignadas"""
@@ -282,7 +335,6 @@ class WaiterStaff(RestaurantEmployee):
     @property
     def role_display(self):
         return 'Garzón de Servicio'
-
 
 # Mantener modelo Waiter original para compatibilidad
 class Waiter(RestaurantEmployee):
@@ -325,7 +377,17 @@ class Table(models.Model):
         null=True, 
         blank=True,
         related_name='assigned_tables',
-        verbose_name="Garzón asignado"
+        verbose_name="Garzón asignado (modelo original)"
+    )
+    
+    # Nuevo sistema de meseros
+    assigned_waiter_staff = models.ForeignKey(
+        'WaiterStaff',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_tables',
+        verbose_name="Mesero asignado"
     )
     
     # QR Code
@@ -404,6 +466,19 @@ class Table(models.Model):
         """Incrementar contador de pedidos"""
         self.total_orders += 1
         self.save(update_fields=['total_orders'])
+    
+    @property
+    def assigned_staff(self):
+        """Retorna el mesero asignado (prioriza WaiterStaff sobre Waiter)"""
+        if self.assigned_waiter_staff:
+            return self.assigned_waiter_staff
+        return self.assigned_waiter
+    
+    @property
+    def assigned_staff_name(self):
+        """Nombre del mesero asignado"""
+        staff = self.assigned_staff
+        return staff.full_name if staff else "Sin asignar"
 
 class WaiterNotification(models.Model):
     """

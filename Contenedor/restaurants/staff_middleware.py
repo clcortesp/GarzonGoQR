@@ -47,6 +47,7 @@ class StaffRoleMiddleware:
             return
         
         # Detectar tipo de empleado
+        print(f"🔍 StaffRoleMiddleware checking user: {request.user.username}")
         staff_member = None
         staff_role = None
         
@@ -85,6 +86,11 @@ class StaffRoleMiddleware:
         request.staff_member = staff_member
         request.staff_role = staff_role
         
+        if staff_member:
+            print(f"✅ Found staff: {staff_member.full_name} with role: {staff_role}")
+        else:
+            print(f"❌ No staff member found for user: {request.user.username}")
+        
         # Verificar acceso a rutas protegidas
         self.check_role_access(request)
     
@@ -97,7 +103,8 @@ class StaffRoleMiddleware:
         
         path = request.path
         role = request.staff_role
-        tenant_slug = getattr(request, 'tenant', {}).get('slug', '')
+        tenant = getattr(request, 'tenant', None)
+        tenant_slug = tenant.slug if tenant else ''
         
         # Definir rutas permitidas por rol
         role_routes = {
@@ -201,13 +208,16 @@ class StaffContextMiddleware:
             return
         
         # Contexto específico por rol
+        tenant = getattr(request, 'tenant', None)
+        tenant_slug = tenant.slug if tenant else ''
+        
         if staff_role == 'kitchen':
             request.staff_context = {
                 'role': 'kitchen',
                 'role_display': 'Cocina',
                 'icon': '👨‍🍳',
                 'color': '#dc3545',
-                'dashboard_url': f"/{request.tenant.slug}/kitchen/",
+                'dashboard_url': f"/{tenant_slug}/kitchen/",
                 'can_modify_prep_time': staff_member.can_modify_prep_time,
                 'priority_level': staff_member.priority_level,
                 'specialties': staff_member.specialties,
@@ -219,7 +229,7 @@ class StaffContextMiddleware:
                 'role_display': 'Bar',
                 'icon': '🍸',
                 'color': '#0d6efd',
-                'dashboard_url': f"/{request.tenant.slug}/bar/",
+                'dashboard_url': f"/{tenant_slug}/bar/",
                 'can_serve_alcohol': staff_member.can_serve_alcohol,
                 'has_bartender_license': staff_member.has_bartender_license,
                 'drink_specialties': staff_member.drink_specialties,
@@ -231,7 +241,7 @@ class StaffContextMiddleware:
                 'role_display': 'Garzón',
                 'icon': '🍽️',
                 'color': '#fd7e14',
-                'dashboard_url': f"/{request.tenant.slug}/waiter/",
+                'dashboard_url': f"/{tenant_slug}/waiter/",
                 'assigned_tables_count': getattr(staff_member, 'assigned_tables_count', 0),
                 'can_take_orders': getattr(staff_member, 'can_take_orders', True),
             }

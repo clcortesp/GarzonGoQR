@@ -32,7 +32,7 @@
                                 <tr>
                                     <th>Mesa</th>
                                     <th>Capacidad</th>
-                                    <th>Garzón Asignado</th>
+                                    <th>Mesero Asignado</th>
                                     <th>Estado</th>
                                     <th>QR</th>
                                     <th width="150">Acciones</th>
@@ -51,8 +51,16 @@
                                             <span class="badge bg-light text-dark">{{ table.capacity }} persona{{ table.capacity|pluralize:"s" }}</span>
                                         </td>
                                         <td>
-                                            {% if table.assigned_waiter %}
-                                                <span class="badge bg-success">{{ table.assigned_waiter.user.get_full_name|default:table.assigned_waiter.user.username }}</span>
+                                            {% if table.assigned_waiter_staff %}
+                                                <span class="badge bg-success">
+                                                    {{ table.assigned_waiter_staff.full_name }}
+                                                    <small class="ms-1">(Mesero)</small>
+                                                </span>
+                                            {% elif table.assigned_waiter %}
+                                                <span class="badge bg-info">
+                                                    {{ table.assigned_waiter.full_name }}
+                                                    <small class="ms-1">(Garzón)</small>
+                                                </span>
                                             {% else %}
                                                 <span class="badge bg-warning">Sin asignar</span>
                                             {% endif %}

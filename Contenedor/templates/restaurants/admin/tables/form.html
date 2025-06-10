@@ -58,16 +58,23 @@
                         </div>
                         
                         <div class="col-md-4">
-                            <label class="form-label">Garzón Asignado</label>
-                            <select class="form-select" name="assigned_waiter">
+                            <label class="form-label">Mesero Asignado</label>
+                            <select class="form-select" name="assigned_waiter_staff">
                                 <option value="">Sin asignar</option>
-                                {% for waiter in waiters %}
-                                    <option value="{{ waiter.id }}" 
-                                            {% if table.assigned_waiter.id == waiter.id %}selected{% endif %}>
-                                        {{ waiter.full_name }}
+                                {% for staff in waiter_staff %}
+                                    <option value="{{ staff.id }}" 
+                                            {% if table.assigned_waiter_staff.id == staff.id %}selected{% endif %}>
+                                        {{ staff.full_name }} - {{ staff.employee_id }}
                                     </option>
                                 {% endfor %}
                             </select>
+                            <div class="form-text">
+                                {% if waiter_staff %}
+                                    Selecciona un mesero para asignar a esta mesa
+                                {% else %}
+                                    No hay meseros disponibles. <a href="{% url 'restaurants:admin_waiter_staff_create' tenant_slug=restaurant.tenant.slug %}">Crear primer mesero</a>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     

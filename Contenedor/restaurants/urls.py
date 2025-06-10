@@ -5,6 +5,10 @@ from . import admin_views
 from . import session_api_views
 from . import kitchen_views
 from . import bar_views
+# 🆕 FASE 2: Nuevas vistas granulares
+from . import kitchen_item_views
+from . import bar_item_views
+from . import waiter_item_views
 from menu.views import MenuListView
 
 app_name = 'restaurants'
@@ -48,11 +52,8 @@ urlpatterns = [
     path('admin/menu/<uuid:item_id>/edit/', admin_views.edit_menu_item, name='admin_menu_edit'),
     path('admin/menu/<uuid:item_id>/delete/', admin_views.delete_menu_item, name='admin_menu_delete'),
     
-    # Gestión de Garzones (Sistema Antiguo)
-    path('admin/waiters/', admin_views.WaitersManagementView.as_view(), name='admin_waiters'),
-    path('admin/waiters/create/', admin_views.create_waiter, name='admin_waiters_create'),
-    path('admin/waiters/<int:waiter_id>/edit/', admin_views.edit_waiter, name='admin_waiters_edit'),
-    path('admin/waiters/<int:waiter_id>/delete/', admin_views.delete_waiter, name='admin_waiters_delete'),
+    # Gestión de Garzones (Sistema Antiguo) - ELIMINADO
+    # Ahora se usa el sistema de WaiterStaff en admin/waiter-staff/
     
     # Gestión de Personal de Cocina
     path('admin/kitchen-staff/', admin_views.KitchenStaffManagementView.as_view(), name='admin_kitchen_staff'),
@@ -90,12 +91,28 @@ urlpatterns = [
     path('kitchen/item/<int:item_id>/prep-time/', kitchen_views.update_prep_time, name='kitchen_update_prep_time'),
     path('kitchen/status/update/', kitchen_views.update_kitchen_status, name='update_kitchen_status'),
     
+    # 🆕 FASE 2: SISTEMA DE COCINA GRANULAR POR ITEMS
+    path('kitchen/items/', kitchen_item_views.kitchen_items_dashboard, name='kitchen_items_dashboard'),
+    path('kitchen/tablet/', kitchen_item_views.kitchen_items_dashboard, {'tablet': True}, name='kitchen_tablet'),
+    path('kitchen/items/update-status/<int:item_id>/', kitchen_item_views.update_kitchen_item_status, name='update_kitchen_item_status'),
+    path('kitchen/items/start/<int:item_id>/', kitchen_item_views.start_item_preparation, name='start_item_preparation'),
+    path('kitchen/items/ready/<int:item_id>/', kitchen_item_views.mark_item_ready, name='mark_item_ready'),
+    path('api/kitchen-items/', kitchen_item_views.kitchen_items_api, name='kitchen_items_api'),
+    
     # 🍸 SISTEMA DE BAR
     path('bar/', bar_views.bar_dashboard, name='bar_dashboard'),
     path('bar/orders/', bar_views.bar_orders_list, name='bar_orders_list'),
     path('bar/drink/<int:item_id>/status/', bar_views.update_drink_status, name='bar_update_drink_status'),
     path('bar/status/update/', bar_views.update_bar_status, name='update_bar_status'),
     path('bar/inventory/', bar_views.bar_inventory_status, name='bar_inventory_status'),
+    
+    # 🆕 FASE 2: SISTEMA DE BAR GRANULAR POR ITEMS
+    path('bar/items/', bar_item_views.bar_items_dashboard, name='bar_items_dashboard'),
+    path('bar/tablet/', bar_item_views.bar_items_dashboard, {'tablet': True}, name='bar_tablet'),
+    path('bar/items/update-status/<int:item_id>/', bar_item_views.update_bar_item_status, name='update_bar_item_status'),
+    path('bar/items/start/<int:item_id>/', bar_item_views.start_bar_item_preparation, name='start_bar_item_preparation'),
+    path('bar/items/ready/<int:item_id>/', bar_item_views.mark_bar_item_ready, name='mark_bar_item_ready'),
+    path('api/bar-items/', bar_item_views.bar_items_api, name='bar_items_api'),
     
     # 🍽️ SISTEMA DE GARZONES
     path('waiter/', waiter_views.waiter_dashboard, name='waiter_dashboard'),
@@ -108,6 +125,12 @@ urlpatterns = [
     path('waiter/stats/', waiter_views.waiter_stats_api, name='waiter_stats_api'),
     path('waiter/end-table-session/', waiter_views.waiter_end_table_session, name='waiter_end_table_session'),
     path('waiter/table-sessions-status/', waiter_views.waiter_table_sessions_status, name='waiter_table_sessions_status'),
+    
+    # 🆕 FASE 2: SISTEMA DE MESEROS CON TIMELINE GRANULAR
+    path('waiter/timeline/', waiter_item_views.waiter_orders_timeline, name='waiter_orders_timeline'),
+    path('waiter/timeline/order/<uuid:order_id>/', waiter_item_views.order_detail_timeline, name='order_detail_timeline'),
+    path('waiter/timeline/serve/<int:item_id>/', waiter_item_views.serve_item, name='serve_item'),
+    path('api/waiter-items/', waiter_item_views.waiter_items_api, name='waiter_items_api'),
     
     # QR Code URLs para mesas
     path('table/<uuid:table_uuid>/', views.table_qr_scan, name='table_qr_scan'),

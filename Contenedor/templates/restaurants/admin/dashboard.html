@@ -135,7 +135,7 @@
                             <br>
                             <small>Revisa el estado de tus garzones para mantener el servicio óptimo.</small>
                         </div>
-                        <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" class="btn btn-sm btn-info ms-auto">
+                                                    <a href="{% url 'restaurants:admin_waiter_staff' tenant_slug=restaurant.tenant.slug %}" class="btn btn-sm btn-info ms-auto">
                             Gestionar Garzones
                         </a>
                     </div>
@@ -291,11 +291,7 @@
                                     <i class="bi bi-cup-straw me-2"></i>Personal de Bar
                                 </a></li>
                                 <li><a class="dropdown-item" href="{% url 'restaurants:admin_waiter_staff_create' tenant_slug=restaurant.tenant.slug %}">
-                                    <i class="bi bi-person-check me-2"></i>Meseros (Nuevo)
-                                </a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{% url 'restaurants:admin_waiters_create' tenant_slug=restaurant.tenant.slug %}">
-                                    <i class="bi bi-people me-2"></i>Garzones (Anterior)
+                                    <i class="bi bi-person-check me-2"></i>Meseros
                                 </a></li>
                             </ul>
                         </div>
@@ -335,21 +331,7 @@
             </div>
             <div class="modal-body">
                 <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <div class="card h-100">
-                            <div class="card-body text-center">
-                                <i class="bi bi-people text-primary" style="font-size: 2rem;"></i>
-                                <h4 class="mt-2">{{ staff_breakdown.waiters }}</h4>
-                                <p class="text-muted mb-2">Garzones (Sistema Anterior)</p>
-                                <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" 
-                                   class="btn btn-sm btn-primary">
-                                    Gestionar
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <div class="card h-100">
                             <div class="card-body text-center">
                                 <i class="bi bi-fire text-danger" style="font-size: 2rem;"></i>
@@ -363,7 +345,7 @@
                         </div>
                     </div>
                     
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <div class="card h-100">
                             <div class="card-body text-center">
                                 <i class="bi bi-cup-straw text-info" style="font-size: 2rem;"></i>
@@ -377,12 +359,12 @@
                         </div>
                     </div>
                     
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <div class="card h-100">
                             <div class="card-body text-center">
                                 <i class="bi bi-person-check text-success" style="font-size: 2rem;"></i>
                                 <h4 class="mt-2">{{ staff_breakdown.waiter_staff }}</h4>
-                                <p class="text-muted mb-2">Meseros (Nuevo Sistema)</p>
+                                <p class="text-muted mb-2">Meseros</p>
                                 <a href="{% url 'restaurants:admin_waiter_staff' tenant_slug=restaurant.tenant.slug %}" 
                                    class="btn btn-sm btn-success">
                                     Gestionar

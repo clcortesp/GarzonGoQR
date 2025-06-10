@@ -200,16 +200,57 @@ class OrderItem(models.Model):
     # Notas específicas del item
     special_instructions = models.TextField(blank=True, help_text="Instrucciones especiales para este item")
     
-    # Estado específico del item
+    # 🆕 FASE 2: Estados granulares por item
+    ITEM_STATUS_CHOICES = [
+        # Estados iniciales
+        ('pending', 'Pendiente de confirmación'),
+        ('confirmed', 'Confirmado por restaurante'),
+        
+        # Estados de preparación - COCINA
+        ('preparing_kitchen', 'En preparación - Cocina'),
+        ('cooking', 'Cocinando'),
+        ('plating', 'Emplantando'),
+        ('kitchen_ready', 'Listo en cocina'),
+        
+        # Estados de preparación - BAR
+        ('preparing_bar', 'En preparación - Bar'),
+        ('mixing', 'Preparando bebida'),
+        ('bar_ready', 'Listo en bar'),
+        
+        # Estados finales
+        ('ready', 'Listo para servir'),
+        ('served', 'Servido al cliente'),
+        ('cancelled', 'Cancelado'),
+    ]
+    
     status = models.CharField(
         max_length=20,
+        choices=ITEM_STATUS_CHOICES,
+        default='pending',
+        help_text="Estado específico de este item"
+    )
+    
+    # 🆕 Área responsable del item (auto-detectada)
+    responsible_area = models.CharField(
+        max_length=20,
         choices=[
-            ('pending', 'Pendiente'),
-            ('preparing', 'Preparando'),
-            ('ready', 'Listo'),
-            ('served', 'Servido'),
+            ('kitchen', 'Cocina'),
+            ('bar', 'Bar'),
+            ('waiter', 'Mesero'),
         ],
-        default='pending'
+        blank=True,
+        help_text="Área responsable de preparar este item"
+    )
+    
+    # 🆕 Tiempos de preparación específicos
+    preparation_started_at = models.DateTimeField(null=True, blank=True)
+    preparation_completed_at = models.DateTimeField(null=True, blank=True)
+    served_at = models.DateTimeField(null=True, blank=True)
+    
+    # 🆕 Tiempo estimado para este item específico
+    estimated_prep_time = models.PositiveIntegerField(
+        default=15,
+        help_text="Tiempo estimado de preparación en minutos para este item"
     )
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -245,6 +286,109 @@ class OrderItem(models.Model):
             desc += f" ({modifier_names})"
         
         return desc
+    
+    # 🆕 FASE 2: Métodos para estados granulares
+    
+    def save(self, *args, **kwargs):
+        """Override save para auto-detectar área responsable"""
+        if not self.responsible_area:
+            self.responsible_area = self.detect_responsible_area()
+        
+        if not self.estimated_prep_time or self.estimated_prep_time == 15:
+            self.estimated_prep_time = self.calculate_estimated_prep_time()
+        
+        super().save(*args, **kwargs)
+    
+    def detect_responsible_area(self):
+        """Auto-detectar qué área debe preparar este item"""
+        category = self.menu_item.category.lower() if self.menu_item.category else ''
+        
+        # Categorías de bar
+        bar_categories = ['bebidas', 'drinks', 'bar', 'cocktails', 'jugos', 'cafeteria']
+        if any(cat in category for cat in bar_categories):
+            return 'bar'
+        
+        # Todo lo demás va a cocina por defecto
+        return 'kitchen'
+    
+    def calculate_estimated_prep_time(self):
+        """Calcular tiempo estimado basado en el tipo de item"""
+        if self.responsible_area == 'bar':
+            return 5  # Bebidas son más rápidas
+        elif self.menu_item.category and 'pizza' in self.menu_item.category.lower():
+            return 25  # Pizzas toman más tiempo
+        else:
+            return 15  # Tiempo por defecto
+    
+    @property
+    def status_for_area(self):
+        """Estado formateado para el área responsable"""
+        status_display = self.get_status_display()
+        
+        if self.responsible_area == 'kitchen':
+            return status_display.replace('Cocina', '').replace(' - ', '').strip()
+        elif self.responsible_area == 'bar':
+            return status_display.replace('Bar', '').replace(' - ', '').strip()
+        
+        return status_display
+    
+    @property
+    def can_start_preparation(self):
+        """Verificar si puede empezar preparación"""
+        return self.status in ['confirmed']
+    
+    @property
+    def is_in_preparation(self):
+        """Verificar si está en preparación"""
+        return self.status in ['preparing_kitchen', 'cooking', 'plating', 'preparing_bar', 'mixing']
+    
+    @property
+    def is_ready_for_service(self):
+        """Verificar si está listo para servir"""
+        return self.status in ['kitchen_ready', 'bar_ready', 'ready']
+    
+    def start_preparation(self):
+        """Iniciar preparación del item"""
+        from django.utils import timezone
+        
+        if self.can_start_preparation:
+            if self.responsible_area == 'kitchen':
+                self.status = 'preparing_kitchen'
+            elif self.responsible_area == 'bar':
+                self.status = 'preparing_bar'
+            
+            self.preparation_started_at = timezone.now()
+            self.save()
+            return True
+        return False
+    
+    def mark_ready(self):
+        """Marcar item como listo"""
+        from django.utils import timezone
+        
+        if self.is_in_preparation:
+            if self.responsible_area == 'kitchen':
+                self.status = 'kitchen_ready'
+            elif self.responsible_area == 'bar':
+                self.status = 'bar_ready'
+            else:
+                self.status = 'ready'
+            
+            self.preparation_completed_at = timezone.now()
+            self.save()
+            return True
+        return False
+    
+    def mark_served(self):
+        """Marcar item como servido"""
+        from django.utils import timezone
+        
+        if self.is_ready_for_service:
+            self.status = 'served'
+            self.served_at = timezone.now()
+            self.save()
+            return True
+        return False
 
 
 class OrderStatusHistory(models.Model):

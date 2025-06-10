@@ -284,14 +284,6 @@
             
             <!-- Gestión de Personal -->
             <li class="nav-item">
-                <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" 
-                   class="nav-link {% if 'admin_waiters' in request.resolver_match.url_name %}active{% endif %}">
-                    <i class="bi bi-people"></i>
-                    Garzones (Sistema Anterior)
-                </a>
-            </li>
-            
-            <li class="nav-item">
                 <a href="{% url 'restaurants:admin_kitchen_staff' tenant_slug=restaurant.tenant.slug %}" 
                    class="nav-link {% if 'admin_kitchen_staff' in request.resolver_match.url_name %}active{% endif %}">
                     <i class="bi bi-fire"></i>
@@ -311,7 +303,7 @@
                 <a href="{% url 'restaurants:admin_waiter_staff' tenant_slug=restaurant.tenant.slug %}" 
                    class="nav-link {% if 'admin_waiter_staff' in request.resolver_match.url_name %}active{% endif %}">
                     <i class="bi bi-person-check"></i>
-                    Meseros (Nuevo Sistema)
+                                                        Meseros
                 </a>
             </li>
             

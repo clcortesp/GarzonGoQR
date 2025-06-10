@@ -68,8 +68,24 @@
                         {% endif %}
                         
                         <div class="card-body">
-                            <h5 class="card-title">{{ restaurant.name }}</h5>
+                            <h5 class="card-title">
+                                {{ restaurant.name }}
+                                {% if not restaurant.is_active %}
+                                    <span class="badge bg-warning text-dark">Inactivo</span>
+                                {% endif %}
+                                {% if restaurant.tenant.status != 'ACTIVE' %}
+                                    <span class="badge bg-info">{{ restaurant.tenant.status }}</span>
+                                {% endif %}
+                            </h5>
                             <p class="card-text text-muted">{{ restaurant.description|truncatewords:15 }}</p>
+                            
+                            <!-- 🔍 DEBUG: Mostrar estado -->
+                            <div class="small text-muted mb-2">
+                                <strong>Debug:</strong> 
+                                Restaurant Active: {{ restaurant.is_active|yesno:"Sí,No" }} | 
+                                Tenant Status: {{ restaurant.tenant.status }} |
+                                Slug: {{ restaurant.tenant.slug }}
+                            </div>
                             
                             {% if restaurant.address %}
                                 <p class="card-text">

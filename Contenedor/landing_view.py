@@ -7,11 +7,19 @@ def landing_view(request):
     Página de inicio principal de GarzónGo QR
     Muestra los restaurantes disponibles
     """
-    # Obtener todos los restaurantes activos
-    restaurants = Restaurant.objects.filter(
-        is_active=True,
-        tenant__status='ACTIVE'
-    ).select_related('tenant')
+    # 🔍 DEBUG: Mostrar TODOS los restaurantes temporalmente
+    restaurants = Restaurant.objects.all().select_related('tenant')
+    
+    # DEBUG: Imprimir información en consola
+    print(f"🔍 DEBUG - Total restaurantes: {restaurants.count()}")
+    for r in restaurants:
+        print(f"   • {r.name} - Active: {r.is_active} - Tenant Status: {r.tenant.status}")
+    
+    # Obtener todos los restaurantes activos (versión original comentada)
+    # restaurants = Restaurant.objects.filter(
+    #     is_active=True,
+    #     tenant__status='ACTIVE'
+    # ).select_related('tenant')
     
     context = {
         'title': 'GarzónGo QR - Sistema de Pedidos Digital',

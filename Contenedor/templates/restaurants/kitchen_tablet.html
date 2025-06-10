@@ -1,0 +1,369 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}🍳 Cocina Tablet - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 📱 DISEÑO OPTIMIZADO PARA TABLETS */
+    body {
+        background: linear-gradient(135deg, #ff6b35, #f7931e);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        overflow-x: hidden;
+        min-height: 100vh;
+        margin: 0;
+        padding: 0;
+    }
+
+    .container-fluid {
+        padding: 0;
+        max-width: 100vw;
+    }
+
+    /* HEADER PARA TABLETS */
+    .kitchen-header {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 20px 30px;
+        border-bottom: 3px solid #ff6b35;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .kitchen-header h1 {
+        color: #ff6b35;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    /* ESTADÍSTICAS GRANDES PARA TABLETS */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        padding: 30px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 30px;
+        border-radius: 20px;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        border: 3px solid transparent;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .stat-number {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 10px;
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* SECCIONES DE ITEMS PARA TABLETS */
+    .items-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 25px;
+        padding: 0 30px 30px;
+    }
+
+    .items-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 25px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        min-height: 400px;
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #eee;
+    }
+
+    .section-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .section-count {
+        background: #ff6b35;
+        color: white;
+        padding: 8px 15px;
+        border-radius: 50px;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    /* CARDS DE ITEMS OPTIMIZADOS PARA TOUCH */
+    .item-card {
+        background: linear-gradient(135deg, #f8f9fa, #ffffff);
+        border: 2px solid #dee2e6;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 15px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+        min-height: 140px;
+    }
+
+    .item-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        border-color: #ff6b35;
+    }
+
+    .item-card.confirmed {
+        border-left: 6px solid #ffc107;
+        background: linear-gradient(135deg, #fff8e1, #ffffff);
+    }
+
+    .item-card.preparing {
+        border-left: 6px solid #fd7e14;
+        background: linear-gradient(135deg, #ffe5d1, #ffffff);
+        animation: pulse 2s infinite;
+    }
+
+    .item-card.ready {
+        border-left: 6px solid #28a745;
+        background: linear-gradient(135deg, #d4edda, #ffffff);
+        animation: glow 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
+    }
+
+    @keyframes glow {
+        0% { box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3); }
+        100% { box-shadow: 0 8px 25px rgba(40, 167, 69, 0.6); }
+    }
+
+    /* BOTONES TÁCTILES GRANDES */
+    .btn-touch {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        min-height: 50px;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-start {
+        background: linear-gradient(135deg, #fd7e14, #ff6b35);
+        color: white;
+    }
+
+    .btn-ready {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+    }
+
+    /* INDICADOR DE CONEXIÓN */
+    .connection-status {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 10px 15px;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        z-index: 1001;
+    }
+
+    .connection-status.online {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .connection-status.offline {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- HEADER PARA TABLETS -->
+    <div class="kitchen-header">
+        <h1>
+            🍳 Dashboard de Cocina
+            <span class="badge badge-warning">{{ restaurant.name }}</span>
+        </h1>
+    </div>
+
+    <!-- ESTADÍSTICAS -->
+    <div class="stats-container">
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_pending }}</div>
+            <div class="stat-label">Pendientes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_in_progress }}</div>
+            <div class="stat-label">En Proceso</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_ready }}</div>
+            <div class="stat-label">Listos</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ recent_ready|length }}</div>
+            <div class="stat-label">Completados</div>
+        </div>
+    </div>
+
+    <!-- GRID DE SECCIONES -->
+    <div class="items-grid">
+        <!-- ITEMS CONFIRMADOS -->
+        <div class="items-section">
+            <div class="section-header">
+                <h3 class="section-title">📝 Confirmados</h3>
+                <span class="section-count">{{ confirmed_items|length }}</span>
+            </div>
+
+            {% for item in confirmed_items %}
+            <div class="item-card confirmed">
+                <h4>{{ item.menu_item.name }} ({{ item.quantity }}x)</h4>
+                <p>Orden #{{ item.order.order_number }}
+                {% if item.order.table %} - Mesa {{ item.order.table.number }}{% endif %}</p>
+                <div class="action-buttons">
+                    <button class="btn-touch btn-start" onclick="startPreparation({{ item.id }})">
+                        🔥 Iniciar
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- ITEMS EN PREPARACIÓN -->
+        <div class="items-section">
+            <div class="section-header">
+                <h3 class="section-title">🔥 En Cocina</h3>
+                <span class="section-count">{{ preparing_items|length }}</span>
+            </div>
+
+            {% for item in preparing_items %}
+            <div class="item-card preparing">
+                <h4>{{ item.menu_item.name }} ({{ item.quantity }}x)</h4>
+                <p>Orden #{{ item.order.order_number }}
+                {% if item.order.table %} - Mesa {{ item.order.table.number }}{% endif %}</p>
+                <div class="action-buttons">
+                    <button class="btn-touch btn-ready" onclick="markReady({{ item.id }})">
+                        ✅ Marcar Listo
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- ITEMS LISTOS -->
+        <div class="items-section">
+            <div class="section-header">
+                <h3 class="section-title">✅ Listos</h3>
+                <span class="section-count">{{ ready_items|length }}</span>
+            </div>
+
+            {% for item in ready_items %}
+            <div class="item-card ready">
+                <h4>{{ item.menu_item.name }} ({{ item.quantity }}x)</h4>
+                <p>Orden #{{ item.order.order_number }}
+                {% if item.order.table %} - Mesa {{ item.order.table.number }}{% endif %}</p>
+                <p>✅ Listo para servir</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- INDICADOR DE CONEXIÓN -->
+<div class="connection-status online" id="connectionStatus">
+    🟢 Conectado
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function startPreparation(itemId) {
+    fetch(`/{{ restaurant.slug }}/kitchen/items/start/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+
+function markReady(itemId) {
+    fetch(`/{{ restaurant.slug }}/kitchen/items/ready/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
+}
+
+// Auto-refresh cada 15 segundos
+setInterval(() => {
+    fetch(`/{{ restaurant.slug }}/api/kitchen-items/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Actualizar contadores si es necesario
+                console.log('Datos actualizados');
+            }
+        });
+}, 15000);
+</script>
+{% endblock %} 

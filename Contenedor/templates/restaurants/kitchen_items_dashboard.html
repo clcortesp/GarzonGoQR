@@ -1,0 +1,633 @@
+{% extends 'restaurants/staff_base.html' %}
+{% load static %}
+
+{% block title %}🍳 Cocina - Items Granulares{% endblock %}
+
+{% block extra_head %}
+<style>
+    .kitchen-header {
+        background: linear-gradient(135deg, #ff6b35, #ff8c42);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+    }
+    
+    .stats-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #ff6b35;
+        display: block;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .items-section {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+        overflow: hidden;
+    }
+    
+    .section-header {
+        padding: 1rem 1.5rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .section-title {
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    
+    .status-confirmed { background: #e3f2fd; color: #1976d2; }
+    .status-preparing_kitchen { background: #fff3e0; color: #f57c00; }
+    .status-cooking { background: #ffebee; color: #d32f2f; }
+    .status-plating { background: #f3e5f5; color: #7b1fa2; }
+    .status-kitchen_ready { background: #e8f5e8; color: #388e3c; }
+    
+    .item-card {
+        padding: 1.5rem;
+        border-bottom: 1px solid #eee;
+        transition: background-color 0.3s ease;
+    }
+    
+    .item-card:last-child {
+        border-bottom: none;
+    }
+    
+    .item-card:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .item-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+    
+    .item-details h5 {
+        margin: 0 0 0.5rem 0;
+        color: #333;
+        font-weight: bold;
+    }
+    
+    .item-meta {
+        font-size: 0.9rem;
+        color: #666;
+        margin: 0.25rem 0;
+    }
+    
+    .order-info {
+        background: #f1f3f4;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .btn-start {
+        background: #ff6b35;
+        color: white;
+    }
+    
+    .btn-start:hover {
+        background: #e55a2b;
+        transform: translateY(-2px);
+    }
+    
+    .btn-ready {
+        background: #4caf50;
+        color: white;
+    }
+    
+    .btn-ready:hover {
+        background: #45a049;
+        transform: translateY(-2px);
+    }
+    
+    .btn-status {
+        background: #2196f3;
+        color: white;
+    }
+    
+    .btn-status:hover {
+        background: #1976d2;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        color: #ccc;
+        margin-bottom: 1rem;
+    }
+    
+    .prep-time {
+        background: #e3f2fd;
+        color: #1976d2;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+    
+    .special-instructions {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+        border-radius: 0 5px 5px 0;
+        font-style: italic;
+    }
+    
+    .auto-refresh {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #333;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        z-index: 1000;
+    }
+    
+    .loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="kitchen-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="mb-2">🍳 Cocina - Items Granulares</h1>
+                <p class="mb-0">Personal: {{ kitchen_staff.full_name }} | {{ restaurant.name }}</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-light" onclick="location.reload()">
+                    <i class="fas fa-sync-alt"></i> Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <span class="stat-number">{{ total_pending }}</span>
+                <div class="stat-label">Pendientes</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <span class="stat-number">{{ total_in_progress }}</span>
+                <div class="stat-label">En Preparación</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <span class="stat-number">{{ recent_ready }}</span>
+                <div class="stat-label">Listos (2h)</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <span class="stat-number">{{ items_by_status.confirmed|length|add:items_by_status.preparing_kitchen|length|add:items_by_status.cooking|length|add:items_by_status.plating|length }}</span>
+                <div class="stat-label">Total Activos</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Items Confirmados -->
+    <div class="items-section">
+        <div class="section-header">
+            <h3 class="section-title">🔸 Items Confirmados ({{ items_by_status.confirmed|length }})</h3>
+            <span class="status-badge status-confirmed">Listo para iniciar</span>
+        </div>
+        {% if items_by_status.confirmed %}
+            {% for item in items_by_status.confirmed %}
+            <div class="item-card" data-item-id="{{ item.id }}">
+                <div class="item-info">
+                    <div class="item-details">
+                        <h5>{{ item.quantity }}x {{ item.menu_item.name }}</h5>
+                        <div class="item-meta">{{ item.item_description }}</div>
+                        <div class="item-meta">
+                            <span class="prep-time">⏱️ {{ item.estimated_prep_time }} min</span>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="status-badge status-confirmed">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                
+                <div class="order-info">
+                    <strong>Orden:</strong> {{ item.order.order_number }} 
+                    {% if item.order.table %}
+                        | <strong>Mesa:</strong> {{ item.order.table.number }}
+                    {% endif %}
+                    | <strong>Cliente:</strong> {{ item.order.customer_name }}
+                </div>
+                
+                {% if item.special_instructions %}
+                <div class="special-instructions">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    <strong>Instrucciones:</strong> {{ item.special_instructions }}
+                </div>
+                {% endif %}
+                
+                <div class="action-buttons">
+                    <button class="btn-action btn-start" onclick="startItemPreparation({{ item.id }})">
+                        <i class="fas fa-play"></i> Iniciar Preparación
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-check-circle"></i>
+                <h4>¡Excelente!</h4>
+                <p>No hay items confirmados pendientes por iniciar</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Items En Preparación -->
+    <div class="items-section">
+        <div class="section-header">
+            <h3 class="section-title">🔥 En Preparación ({{ items_by_status.preparing_kitchen|length }})</h3>
+            <span class="status-badge status-preparing_kitchen">Trabajando</span>
+        </div>
+        {% if items_by_status.preparing_kitchen %}
+            {% for item in items_by_status.preparing_kitchen %}
+            <div class="item-card" data-item-id="{{ item.id }}">
+                <div class="item-info">
+                    <div class="item-details">
+                        <h5>{{ item.quantity }}x {{ item.menu_item.name }}</h5>
+                        <div class="item-meta">{{ item.item_description }}</div>
+                        <div class="item-meta">
+                            Iniciado: {{ item.preparation_started_at|date:"H:i" }}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="status-badge status-preparing_kitchen">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                
+                <div class="order-info">
+                    <strong>Orden:</strong> {{ item.order.order_number }} 
+                    {% if item.order.table %}
+                        | <strong>Mesa:</strong> {{ item.order.table.number }}
+                    {% endif %}
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn-action btn-status" onclick="updateItemStatus({{ item.id }}, 'cooking')">
+                        <i class="fas fa-fire"></i> Marcar Cocinando
+                    </button>
+                    <button class="btn-action btn-ready" onclick="markItemReady({{ item.id }})">
+                        <i class="fas fa-check"></i> Listo
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-utensils"></i>
+                <h4>Área libre</h4>
+                <p>No hay items en preparación inicial</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Items Cocinando -->
+    <div class="items-section">
+        <div class="section-header">
+            <h3 class="section-title">🔥 Cocinando ({{ items_by_status.cooking|length }})</h3>
+            <span class="status-badge status-cooking">En cocción</span>
+        </div>
+        {% if items_by_status.cooking %}
+            {% for item in items_by_status.cooking %}
+            <div class="item-card" data-item-id="{{ item.id }}">
+                <div class="item-info">
+                    <div class="item-details">
+                        <h5>{{ item.quantity }}x {{ item.menu_item.name }}</h5>
+                        <div class="item-meta">{{ item.item_description }}</div>
+                    </div>
+                    <div class="text-end">
+                        <span class="status-badge status-cooking">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn-action btn-status" onclick="updateItemStatus({{ item.id }}, 'plating')">
+                        <i class="fas fa-magic"></i> Emplatar
+                    </button>
+                    <button class="btn-action btn-ready" onclick="markItemReady({{ item.id }})">
+                        <i class="fas fa-check"></i> Listo
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-fire"></i>
+                <h4>Sin cocción activa</h4>
+                <p>No hay items cocinándose actualmente</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Items Emplantando -->
+    <div class="items-section">
+        <div class="section-header">
+            <h3 class="section-title">🍽️ Emplantando ({{ items_by_status.plating|length }})</h3>
+            <span class="status-badge status-plating">Finalizando</span>
+        </div>
+        {% if items_by_status.plating %}
+            {% for item in items_by_status.plating %}
+            <div class="item-card" data-item-id="{{ item.id }}">
+                <div class="item-info">
+                    <div class="item-details">
+                        <h5>{{ item.quantity }}x {{ item.menu_item.name }}</h5>
+                        <div class="item-meta">{{ item.item_description }}</div>
+                    </div>
+                    <div class="text-end">
+                        <span class="status-badge status-plating">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn-action btn-ready" onclick="markItemReady({{ item.id }})">
+                        <i class="fas fa-check-circle"></i> Listo para Servir
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-utensils"></i>
+                <h4>Sin emplantado</h4>
+                <p>No hay items en proceso de emplantado</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Auto-refresh indicator -->
+<div class="auto-refresh" id="refresh-indicator">
+    <i class="fas fa-sync-alt fa-spin"></i> Actualizando...
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Auto-refresh cada 30 segundos
+let refreshInterval;
+let isLoading = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    hideRefreshIndicator();
+    startAutoRefresh();
+});
+
+function startAutoRefresh() {
+    refreshInterval = setInterval(function() {
+        if (!isLoading) {
+            showRefreshIndicator();
+            setTimeout(function() {
+                location.reload();
+            }, 1000);
+        }
+    }, 30000); // 30 segundos
+}
+
+function showRefreshIndicator() {
+    document.getElementById('refresh-indicator').style.display = 'block';
+}
+
+function hideRefreshIndicator() {
+    document.getElementById('refresh-indicator').style.display = 'none';
+}
+
+function startItemPreparation(itemId) {
+    if (isLoading) return;
+    isLoading = true;
+    
+    const card = document.querySelector(`[data-item-id="${itemId}"]`);
+    card.classList.add('loading');
+    
+         fetch('{% url "restaurants:start_item_preparation" tenant_slug=restaurant.slug item_id=0 %}'.replace('0', itemId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('success', data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('error', data.error || 'Error al iniciar preparación');
+        }
+    })
+    .catch(error => {
+        showToast('error', 'Error de conexión');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        isLoading = false;
+        card.classList.remove('loading');
+    });
+}
+
+function updateItemStatus(itemId, newStatus) {
+    if (isLoading) return;
+    isLoading = true;
+    
+    const card = document.querySelector(`[data-item-id="${itemId}"]`);
+    card.classList.add('loading');
+    
+    const formData = new FormData();
+    formData.append('status', newStatus);
+    
+         fetch('{% url "restaurants:update_kitchen_item_status" tenant_slug=restaurant.slug item_id=0 %}'.replace('0', itemId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('success', data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('error', data.error || 'Error al actualizar estado');
+        }
+    })
+    .catch(error => {
+        showToast('error', 'Error de conexión');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        isLoading = false;
+        card.classList.remove('loading');
+    });
+}
+
+function markItemReady(itemId) {
+    if (isLoading) return;
+    isLoading = true;
+    
+    const card = document.querySelector(`[data-item-id="${itemId}"]`);
+    card.classList.add('loading');
+    
+         fetch('{% url "restaurants:mark_item_ready" tenant_slug=restaurant.slug item_id=0 %}'.replace('0', itemId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('success', data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('error', data.error || 'Error al marcar como listo');
+        }
+    })
+    .catch(error => {
+        showToast('error', 'Error de conexión');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        isLoading = false;
+        card.classList.remove('loading');
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function showToast(type, message) {
+    // Crear elemento toast
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} toast-notification`;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+        ${message}
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove después de 3 segundos
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// CSS para animaciones
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %} 

@@ -1,0 +1,460 @@
+{% extends 'restaurants/staff_base.html' %}
+{% load static %}
+
+{% block title %}🍸 Bar - Items Granulares{% endblock %}
+
+{% block extra_head %}
+<style>
+    .bar-header {
+        background: linear-gradient(135deg, #6a5acd, #9370db);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(106, 90, 205, 0.3);
+    }
+    
+    .stats-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+    
+    .stats-card:hover { transform: translateY(-5px); }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #6a5acd;
+        display: block;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .items-section {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+        overflow: hidden;
+    }
+    
+    .section-header {
+        padding: 1rem 1.5rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .section-title {
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    
+    .status-confirmed { background: #e3f2fd; color: #1976d2; }
+    .status-preparing_bar { background: #f3e5f5; color: #7b1fa2; }
+    .status-mixing { background: #fff3e0; color: #f57c00; }
+    .status-bar_ready { background: #e8f5e8; color: #388e3c; }
+    
+    .item-card {
+        padding: 1.5rem;
+        border-bottom: 1px solid #eee;
+        transition: background-color 0.3s ease;
+    }
+    
+    .item-card:last-child { border-bottom: none; }
+    .item-card:hover { background-color: #f8f9fa; }
+    
+    .item-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+    
+    .item-details h5 {
+        margin: 0 0 0.5rem 0;
+        color: #333;
+        font-weight: bold;
+    }
+    
+    .item-meta {
+        font-size: 0.9rem;
+        color: #666;
+        margin: 0.25rem 0;
+    }
+    
+    .order-info {
+        background: #f1f3f4;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .btn-start {
+        background: #6a5acd;
+        color: white;
+    }
+    
+    .btn-start:hover {
+        background: #5a4fcf;
+        transform: translateY(-2px);
+    }
+    
+    .btn-ready {
+        background: #4caf50;
+        color: white;
+    }
+    
+    .btn-ready:hover {
+        background: #45a049;
+        transform: translateY(-2px);
+    }
+    
+    .btn-status {
+        background: #ff9800;
+        color: white;
+    }
+    
+    .btn-status:hover { background: #e68900; }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        color: #ccc;
+        margin-bottom: 1rem;
+    }
+    
+    .prep-time {
+        background: #f3e5f5;
+        color: #7b1fa2;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+    
+    .auto-refresh {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #333;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        z-index: 1000;
+        display: none;
+    }
+    
+    .loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="bar-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="mb-2">🍸 Bar - Items Granulares</h1>
+                <p class="mb-0">Bartender: {{ bar_staff.full_name }} | {{ restaurant.name }}</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-light" onclick="location.reload()">
+                    <i class="fas fa-sync-alt"></i> Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="stats-card">
+                <span class="stat-number">{{ total_pending }}</span>
+                <div class="stat-label">Pendientes</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-card">
+                <span class="stat-number">{{ total_in_progress }}</span>
+                <div class="stat-label">En Preparación</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stats-card">
+                <span class="stat-number">{{ recent_ready }}</span>
+                <div class="stat-label">Listos (1h)</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Items Confirmados -->
+    <div class="items-section">
+        <div class="section-header">
+            <h3 class="section-title">🔸 Bebidas Confirmadas ({{ items_by_status.confirmed|length }})</h3>
+            <span class="status-badge status-confirmed">Listo para preparar</span>
+        </div>
+        {% if items_by_status.confirmed %}
+            {% for item in items_by_status.confirmed %}
+            <div class="item-card" data-item-id="{{ item.id }}">
+                <div class="item-info">
+                    <div class="item-details">
+                        <h5>🍹 {{ item.quantity }}x {{ item.menu_item.name }}</h5>
+                        <div class="item-meta">{{ item.item_description }}</div>
+                        <div class="item-meta">
+                            <span class="prep-time">⏱️ {{ item.estimated_prep_time }} min</span>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="status-badge status-confirmed">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                
+                <div class="order-info">
+                    <strong>Orden:</strong> {{ item.order.order_number }} 
+                    {% if item.order.table %}
+                        | <strong>Mesa:</strong> {{ item.order.table.number }}
+                    {% endif %}
+                    | <strong>Cliente:</strong> {{ item.order.customer_name }}
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn-action btn-start" onclick="startBarItem({{ item.id }})">
+                        <i class="fas fa-cocktail"></i> Iniciar Preparación
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-check-circle"></i>
+                <h4>¡Todo al día!</h4>
+                <p>No hay bebidas confirmadas pendientes</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Items En Preparación -->
+    <div class="items-section">
+        <div class="section-header">
+            <h3 class="section-title">🔥 En Preparación ({{ items_by_status.preparing_bar|length }})</h3>
+            <span class="status-badge status-preparing_bar">Trabajando</span>
+        </div>
+        {% if items_by_status.preparing_bar %}
+            {% for item in items_by_status.preparing_bar %}
+            <div class="item-card" data-item-id="{{ item.id }}">
+                <div class="item-info">
+                    <div class="item-details">
+                        <h5>🍹 {{ item.quantity }}x {{ item.menu_item.name }}</h5>
+                        <div class="item-meta">{{ item.item_description }}</div>
+                        <div class="item-meta">
+                            Iniciado: {{ item.preparation_started_at|date:"H:i" }}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="status-badge status-preparing_bar">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn-action btn-status" onclick="updateStatus({{ item.id }}, 'mixing')">
+                        <i class="fas fa-blender"></i> Mezclar
+                    </button>
+                    <button class="btn-action btn-ready" onclick="markReady({{ item.id }})">
+                        <i class="fas fa-check"></i> Listo
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-glass-martini"></i>
+                <h4>Bar libre</h4>
+                <p>No hay bebidas en preparación</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Items Mezclando -->
+    <div class="items-section">
+        <div class="section-header">
+            <h3 class="section-title">🌪️ Mezclando ({{ items_by_status.mixing|length }})</h3>
+            <span class="status-badge status-mixing">Mezclando</span>
+        </div>
+        {% if items_by_status.mixing %}
+            {% for item in items_by_status.mixing %}
+            <div class="item-card" data-item-id="{{ item.id }}">
+                <div class="item-info">
+                    <div class="item-details">
+                        <h5>🍸 {{ item.quantity }}x {{ item.menu_item.name }}</h5>
+                        <div class="item-meta">{{ item.item_description }}</div>
+                    </div>
+                    <div class="text-end">
+                        <span class="status-badge status-mixing">{{ item.get_status_display }}</span>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn-action btn-ready" onclick="markReady({{ item.id }})">
+                        <i class="fas fa-check-circle"></i> Listo para Servir
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-blender"></i>
+                <h4>Sin mezclas activas</h4>
+                <p>No hay bebidas mezclándose</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="auto-refresh" id="refresh-indicator">
+    <i class="fas fa-sync-alt fa-spin"></i> Actualizando...
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let isLoading = false;
+
+function startBarItem(itemId) {
+    performAction('/bar/items/start/' + itemId + '/', 'POST', 'Iniciando preparación...');
+}
+
+function updateStatus(itemId, status) {
+    const formData = new FormData();
+    formData.append('status', status);
+    performAction('/bar/items/update-status/' + itemId + '/', 'POST', 'Actualizando estado...', formData);
+}
+
+function markReady(itemId) {
+    performAction('/bar/items/ready/' + itemId + '/', 'POST', 'Marcando como listo...');
+}
+
+function performAction(url, method, message, body = null) {
+    if (isLoading) return;
+    isLoading = true;
+    
+    const fullUrl = '{% url "restaurants:home" tenant_slug=restaurant.slug %}' + url;
+    
+    const options = {
+        method: method,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+        }
+    };
+    
+    if (body) {
+        options.body = body;
+    } else if (method === 'POST') {
+        options.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    }
+    
+    fetch(fullUrl, options)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('success', data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('error', data.error || 'Error en la operación');
+        }
+    })
+    .catch(error => {
+        showToast('error', 'Error de conexión');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        isLoading = false;
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function showToast(type, message) {
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-' + (type === 'success' ? 'success' : 'danger');
+    toast.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    toast.innerHTML = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Auto-refresh cada 30 segundos
+setInterval(function() {
+    if (!isLoading) {
+        location.reload();
+    }
+}, 30000);
+</script>
+{% endblock %} 

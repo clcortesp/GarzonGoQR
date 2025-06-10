@@ -133,26 +133,48 @@ class Cart:
     
     def __iter__(self):
         """
-        Iterar sobre los items del carrito y obtener los productos de la base de datos
+        Iterar sobre los items del carrito - VERSIÓN SIN OBJETOS COMPLEJOS
+        """
+        cart = self.cart.copy()
+        
+        for cart_item_id, item in cart.items():
+            # Crear copia del item sin objetos complejos
+            item_copy = item.copy()
+            item_copy['cart_item_id'] = cart_item_id
+            unit_price = Decimal(item_copy['unit_price'])
+            total_price = unit_price * item_copy['quantity']
+            
+            # Convertir precios a string para serialización JSON
+            item_copy['unit_price'] = str(unit_price)
+            item_copy['total_price'] = str(total_price)
+            
+            yield item_copy
+    
+    def get_items_with_objects(self):
+        """
+        Obtener items del carrito CON objetos MenuItem (para templates que los necesiten)
         """
         menu_item_ids = [item['menu_item_id'] for item in self.cart.values()]
         menu_items = MenuItem.objects.filter(id__in=menu_item_ids)
         cart = self.cart.copy()
         
+        items = []
         for cart_item_id, item in cart.items():
             menu_item = next((mi for mi in menu_items if str(mi.id) == item['menu_item_id']), None)
             if menu_item:
-                # Incluir el objeto MenuItem para templates (necesario para cart.html)
+                # Incluir el objeto MenuItem para templates
                 item['menu_item'] = menu_item
-                item['cart_item_id'] = cart_item_id  # Agregar ID único del carrito
+                item['cart_item_id'] = cart_item_id
                 unit_price = Decimal(item['unit_price'])
                 total_price = unit_price * item['quantity']
                 
-                # Convertir precios a string para serialización JSON
+                # Convertir precios a string
                 item['unit_price'] = str(unit_price)
                 item['total_price'] = str(total_price)
                 
-                yield item
+                items.append(item)
+        
+        return items
     
     def __len__(self):
         """
@@ -172,7 +194,7 @@ class Cart:
         """
         return len(self.cart)
     
-    def get_cart_data(self, for_json=False):
+    def get_cart_data(self, for_json=False, include_objects=False):
         """
         Obtener todos los datos del carrito para templates
         """
@@ -185,11 +207,47 @@ class Cart:
                 'item_count': len(self.cart),
             }
         else:
-            # Para templates, incluir los items completos
-            items = list(self)
+            # Para templates - usar método apropiado según se necesiten objetos
+            if include_objects:
+                items = self.get_items_with_objects()
+            else:
+                items = list(self)
+            
             return {
                 'items': items,
                 'total_price': str(self.get_total_price()),
                 'total_quantity': len(self),
                 'total_items': self.get_total_items(),
-            } 
+            }
+    
+    def get_cart_items_for_template(self):
+        """
+        Método específico para templates que necesitan objetos MenuItem
+        """
+        return list(self)
+    
+    def get_serializable_data(self):
+        """
+        Obtener datos del carrito que son serializables en JSON
+        """
+        items = []
+        for cart_item_id, item in self.cart.items():
+            # Solo incluir datos básicos serializables
+            items.append({
+                'cart_item_id': cart_item_id,
+                'menu_item_id': item['menu_item_id'],
+                'name': item['name'],
+                'quantity': item['quantity'],
+                'unit_price': item['unit_price'],
+                'total_price': str(Decimal(item['unit_price']) * item['quantity']),
+                'variant_name': item.get('variant_name'),
+                'addon_names': item.get('addon_names', []),
+                'modifier_names': item.get('modifier_names', []),
+            })
+        
+        return {
+            'items': items,
+            'total_price': str(self.get_total_price()),
+            'total_quantity': len(self),
+            'total_items': self.get_total_items(),
+        } 

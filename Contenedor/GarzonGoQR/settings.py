@@ -195,5 +195,5 @@ elif ENVIRONMENT == 'staging':
     
 elif ENVIRONMENT == 'development':
     # 💻 DESARROLLO - Tu configuración actual
-    QR_BASE_URL = "http://localhost:7000"
+    QR_BASE_URL = "http://localhost:8000"
     USE_HTTPS = False

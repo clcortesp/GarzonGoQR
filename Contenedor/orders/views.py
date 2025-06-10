@@ -38,12 +38,12 @@ class CheckoutView(object):
                 messages.warning(request, 'Tu carrito está vacío. Agrega algunos productos antes de continuar.')
                 return redirect(f'/{tenant_slug}/menu/')
             
-            # 🎯 DETECTAR SESIÓN DE MESA ACTIVA
+            # 🎯 DETECTAR SESIÓN DE MESA ACTIVA (FASE 2: Integración completa)
             from restaurants.table_session_manager import TableSessionManager
             table_session = TableSessionManager.get_active_session(request)
             
-            # Calcular precios
-            cart_data = cart.get_cart_data()
+            # 🔧 FASE 2: Usar método específico para templates (sin objetos complejos)
+            cart_data = cart.get_items_with_objects()
             
             # Crear formulario con datos pre-llenos si hay sesión de mesa
             form_initial = {}
@@ -70,7 +70,8 @@ class CheckoutView(object):
             
             context = {
                 'restaurant': restaurant,
-                'cart': cart_data,
+                'tenant': restaurant.tenant,  # 🔧 FASE 2: Agregar tenant para base.html
+                'cart': {'items': cart_data},  # 🔧 FASE 2: Estructura correcta para template
                 'form': form,
                 'cart_total': cart.get_total_price(),
                 'cart_count': len(cart),
@@ -98,7 +99,7 @@ class CheckoutView(object):
             # Verificar que el carrito no esté vacío
             if not cart:
                 messages.warning(request, 'Tu carrito está vacío.')
-                return redirect('menu:menu_list', tenant_slug=tenant_slug)
+                return redirect('menu:list')
             
             form = CheckoutForm(request.POST)
             
@@ -111,14 +112,15 @@ class CheckoutView(object):
                     cart.clear()
                     
                     messages.success(request, f'¡Pedido realizado exitosamente! Número de orden: {order.order_number}')
-                    return redirect('orders:order_detail', tenant_slug=tenant_slug, order_id=order.id)
+                    return redirect(f'/{tenant_slug}/orders/order/{order.id}/')
             
             else:
                 # Si hay errores en el formulario, mostrarlos
-                cart_data = cart.get_cart_data()
+                cart_data = cart.get_items_with_objects()
                 context = {
                     'restaurant': restaurant,
-                    'cart': cart_data,
+                    'tenant': restaurant.tenant,  # 🔧 FASE 2: Agregar tenant para base.html
+                    'cart': {'items': cart_data},  # 🔧 FASE 2: Estructura correcta para template
                     'form': form,
                     'cart_total': cart.get_total_price(),
                     'cart_count': len(cart)
@@ -128,7 +130,7 @@ class CheckoutView(object):
         except Exception as e:
             logger.error(f"Error en checkout POST: {e}")
             messages.error(request, 'Error al procesar el pedido. Inténtalo de nuevo.')
-            return redirect('orders:checkout', tenant_slug=tenant_slug)
+            return redirect(f'/{tenant_slug}/orders/checkout/')
     
     def _create_order_from_cart(self, form, restaurant, cart, request):
         """
@@ -176,12 +178,13 @@ class CheckoutView(object):
     def _create_order_item(self, order, item_data):
         """
         Crear un item de orden a partir de datos del carrito
+        🆕 FASE 2: Integrado con estados granulares
         """
         from menu.models import MenuItem, MenuVariant, MenuAddon, MenuModifier
         
         menu_item = MenuItem.objects.get(id=item_data['menu_item_id'])
         
-        # Crear el item de orden
+        # Crear el item de orden con estado inicial
         order_item = OrderItem.objects.create(
             order=order,
             menu_item=menu_item,
@@ -191,7 +194,9 @@ class CheckoutView(object):
             addons_price=item_data.get('addons_price', 0),
             modifiers_price=item_data.get('modifiers_price', 0),
             total_price=item_data['total_price'],
-            special_instructions=item_data.get('special_instructions', '')
+            special_instructions=item_data.get('special_instructions', ''),
+            # 🆕 FASE 2: Estado inicial granular
+            status='confirmed'  # Inmediatamente confirmado para preparación
         )
         
         # Agregar variante si existe
@@ -216,6 +221,7 @@ def checkout(request, tenant_slug):
     Vista función para el proceso de checkout
     """
 
+    print(f"🔍 Checkout called with tenant_slug: '{tenant_slug}'")
     
     # El middleware ya inyecta restaurant en el request
     restaurant = request.restaurant
@@ -228,10 +234,25 @@ def checkout(request, tenant_slug):
     from restaurants.table_session_manager import TableSessionManager
     table_session = TableSessionManager.get_active_session(request)
     
+    # 🔧 INICIALIZAR table_info ANTES DE CUALQUIER LÓGICA
+    table_info = None
+    if table_session:
+        # Es pedido desde mesa - obtener info de mesa
+        from restaurants.models import Table
+        try:
+            table = Table.objects.get(id=table_session['table_id'])
+            table_info = {
+                'number': table.number,
+                'name': table.display_name,
+                'location': table.location or ''
+            }
+            print(f"🪑 Mesa detectada en sesión: {table.display_name}")
+        except Table.DoesNotExist:
+            print("❌ Mesa no encontrada en DB")
+    
     # Verificar que el carrito no esté vacío
     if not cart:
         messages.warning(request, 'Tu carrito está vacío. Agrega algunos productos antes de continuar.')
-        # Redirigir al menú usando URL absoluta
         return redirect(f'/{tenant_slug}/menu/')
     
     if request.method == 'POST':
@@ -274,7 +295,8 @@ def checkout(request, tenant_slug):
                     print("🔍 Cart cleared")
                     
                     messages.success(request, f'¡Pedido realizado exitosamente! Número de orden: {order.order_number}')
-                    return redirect('orders:order_detail', tenant_slug=tenant_slug, order_id=order.id)
+                    print(f"🔍 Redirecting to: /{tenant_slug}/orders/order/{order.id}/")
+                    return redirect(f'/{tenant_slug}/orders/order/{order.id}/')
                     
             except Exception as e:
                 print(f"❌ Error en checkout POST: {e}")
@@ -301,34 +323,22 @@ def checkout(request, tenant_slug):
         
         # 🎯 CREAR FORMULARIO CON DATOS PRE-LLENOS SI HAY SESIÓN DE MESA
         form_initial = {}
-        table_info = None
         
-        if table_session:
-            # Es pedido desde mesa - pre-llenar datos
-            from restaurants.models import Table
-            try:
-                table = Table.objects.get(id=table_session['table_id'])
-                table_info = {
-                    'number': table.number,
-                    'name': table.display_name,
-                    'location': table.location or ''
-                }
-                form_initial = {
-                    'order_type': 'dine_in',  # Forzar tipo "en restaurante"
-                    'table_number': table.display_name,  # Pre-llenar mesa
-                }
-                print(f"🪑 Mesa detectada en sesión: {table.display_name}")
-            except Table.DoesNotExist:
-                print("❌ Mesa no encontrada en DB")
+        if table_session and table_info:
+            form_initial = {
+                'order_type': 'dine_in',  # Forzar tipo "en restaurante"
+                'table_number': table_info['name'],  # Pre-llenar mesa
+            }
         
         form = CheckoutForm(initial=form_initial)
     
-    # Calcular precios
-    cart_data = cart.get_cart_data()
+    # 🔧 FASE 2: Obtener datos del carrito para template
+    cart_data = cart.get_items_with_objects()
     
     context = {
         'restaurant': restaurant,
-        'cart': cart_data,
+        'tenant': restaurant.tenant,  # 🔧 FASE 2: Agregar tenant para base.html
+        'cart': {'items': cart_data},  # 🔧 FASE 2: Estructura correcta para template
         'form': form,
         'cart_total': cart.get_total_price(),
         'cart_count': len(cart),
@@ -375,21 +385,25 @@ def _create_order_from_cart(form, restaurant, cart, request):
     # 🆕 LÓGICA DE MESA Y GARZÓN
     # Si es dine_in y hay una mesa en la sesión (por QR), asignarla
     if form.cleaned_data['order_type'] == 'dine_in':
-        table_uuid = request.session.get('table_uuid')
-        if table_uuid:
+        # 🔧 USAR SISTEMA MODERNO TableSessionManager
+        from restaurants.table_session_manager import TableSessionManager
+        table_session = TableSessionManager.get_active_session(request)
+        
+        if table_session:
             try:
-                table = Table.objects.get(qr_code_uuid=table_uuid, restaurant=restaurant)
+                from restaurants.models import Table
+                table = Table.objects.get(id=table_session['table_id'], restaurant=restaurant)
                 order.table = table
                 order.table_number = table.number  # Backward compatibility
                 
                 # Incrementar contador de pedidos de la mesa
                 table.increment_order_count()
                 
-                logger.info(f"Mesa {table.number} asignada al pedido {order.order_number}")
+                logger.info(f"Mesa {table.number} (ID: {table.id}) asignada al pedido {order.order_number} desde sesión QR")
             except Table.DoesNotExist:
-                logger.warning(f"Mesa con UUID {table_uuid} no encontrada")
+                logger.warning(f"Mesa con ID {table_session['table_id']} no encontrada")
         
-        # Si no hay mesa de QR pero sí número de mesa manual
+        # Si no hay mesa de sesión QR pero sí número de mesa manual
         elif form.cleaned_data.get('table_number'):
             try:
                 table = Table.objects.get(
@@ -414,11 +428,12 @@ def _create_order_from_cart(form, restaurant, cart, request):
         notes='Pedido creado desde el carrito'
     )
     
-    # 🆕 NOTIFICAR AL GARZÓN
+    # 🆕 NOTIFICAR AL MESERO (compatible con WaiterStaff)
     try:
-        notification = WaiterNotificationService.notify_new_order(order)
+        from restaurants.waiter_staff_notifications import WaiterStaffNotificationService
+        notification = WaiterStaffNotificationService.notify_new_order(order)
         if notification:
-            logger.info(f"Notificación enviada a garzón {notification.waiter.full_name} para pedido {order.order_number}")
+            logger.info(f"Notificación enviada a mesero {notification.waiter.full_name} para pedido {order.order_number}")
         else:
             logger.warning(f"No se pudo enviar notificación para pedido {order.order_number}")
     except Exception as e:
@@ -430,12 +445,13 @@ def _create_order_from_cart(form, restaurant, cart, request):
 def _create_order_item(order, item_data):
     """
     Crear un item de orden a partir de datos del carrito
+    🆕 FASE 2: Integrado con estados granulares
     """
     from menu.models import MenuItem, MenuVariant, MenuAddon, MenuModifier
     
     menu_item = MenuItem.objects.get(id=item_data['menu_item_id'])
     
-    # Crear el item de orden
+    # Crear el item de orden con estado granular inicial
     order_item = OrderItem.objects.create(
         order=order,
         menu_item=menu_item,
@@ -445,7 +461,9 @@ def _create_order_item(order, item_data):
         addons_price=item_data.get('addon_price', '0'),  # Era addons_price, pero en cart es addon_price
         modifiers_price=item_data.get('modifier_price', '0'),  # Era modifiers_price, pero en cart es modifier_price
         total_price=item_data['total_price'],
-        special_instructions=item_data.get('special_instructions', '')
+        special_instructions=item_data.get('special_instructions', ''),
+        # 🆕 FASE 2: Estado inicial granular
+        status='confirmed'  # Inmediatamente confirmado para preparación
     )
     
     # Agregar variante si existe
@@ -453,6 +471,9 @@ def _create_order_item(order, item_data):
         variant = MenuVariant.objects.get(id=item_data['variant_id'])
         order_item.selected_variant = variant
         order_item.save()
+    
+    # 🆕 FASE 2: Log del nuevo item con estado granular
+    logger.info(f"Item creado: {order_item.menu_item.name} - Estado: {order_item.status} - Área: {order_item.responsible_area}")
     
     # Agregar addons
     if item_data.get('addon_ids'):

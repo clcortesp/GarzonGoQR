@@ -15,7 +15,7 @@ import qrcode
 from io import BytesIO
 import base64
 
-from .models import Restaurant, Table, Waiter, WaiterNotification, KitchenStaff, BarStaff, WaiterStaff
+from .models import Restaurant, Table, WaiterNotification, KitchenStaff, BarStaff, WaiterStaff
 from menu.models import MenuItem, MenuCategory, MenuVariant, MenuAddon
 from orders.models import Order, OrderItem
 from django.contrib.auth.models import User
@@ -141,18 +141,16 @@ class RestaurantAdminDashboard(RestaurantAdminMixin, TemplateView):
         active_bar_staff = BarStaff.objects.filter(restaurant=restaurant, status='active')
         active_waiter_staff = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
         
-        # Mantener compatibilidad con el modelo original Waiter que tiene related_name='waiters'
-        try:
-            active_waiters = restaurant.waiters.filter(status='active')
-            active_waiters_count = active_waiters.count()
-        except:
-            active_waiters = []
-            active_waiters_count = 0
-        
-        total_active_staff = active_waiters_count + active_kitchen_staff.count() + active_bar_staff.count() + active_waiter_staff.count()
+        # El sistema ahora usa solo WaiterStaff para meseros
+        total_active_staff = active_kitchen_staff.count() + active_bar_staff.count() + active_waiter_staff.count()
         
         # Mesas con problemas
-        tables_without_waiter = restaurant.tables.filter(assigned_waiter=None, is_active=True)
+        # Mesas sin mesero asignado (nuevo sistema)
+        tables_without_waiter = restaurant.tables.filter(
+            assigned_waiter_staff=None, 
+            assigned_waiter=None,  # Mantener compatibilidad temporal
+            is_active=True
+        )
         
         # Calcular promedios
         orders_today_count = orders_today.count()
@@ -181,10 +179,10 @@ class RestaurantAdminDashboard(RestaurantAdminMixin, TemplateView):
             # Datos para el dashboard
             'pending_orders': pending_orders,
             'top_products': top_products,
-            'active_waiters_count': active_waiters_count,
+            'active_waiters_count': active_waiter_staff.count(),  # Ahora usa WaiterStaff
             'total_active_staff': total_active_staff,
             'staff_breakdown': {
-                'waiters': active_waiters_count,
+                'waiters': active_waiter_staff.count(),  # Ahora usa WaiterStaff
                 'kitchen_staff': active_kitchen_staff.count(),
                 'bar_staff': active_bar_staff.count(),
                 'waiter_staff': active_waiter_staff.count(),
@@ -195,7 +193,7 @@ class RestaurantAdminDashboard(RestaurantAdminMixin, TemplateView):
             # Alertas
             'alerts': {
                 'tables_without_waiter': tables_without_waiter.count(),
-                'inactive_waiters': restaurant.waiters.filter(status='inactive').count() if hasattr(restaurant, 'waiters') else 0,
+                'inactive_waiters': WaiterStaff.objects.filter(restaurant=restaurant, status='inactive').count(),
                 'inactive_kitchen_staff': KitchenStaff.objects.filter(restaurant=restaurant, status='inactive').count(),
                 'inactive_bar_staff': BarStaff.objects.filter(restaurant=restaurant, status='inactive').count(),
                 'staff_without_shifts': (
@@ -381,162 +379,6 @@ def delete_menu_item(request, tenant_slug, item_id):
 
 
 # ============================================================================
-# GESTIÓN DE GARZONES
-# ============================================================================
-
-class WaitersManagementView(RestaurantAdminMixin, ListView):
-    """Vista para gestión de garzones"""
-    model = Waiter
-    template_name = 'restaurants/admin/waiters/list.html'
-    context_object_name = 'waiters'
-    
-    def get_queryset(self):
-        return Waiter.objects.filter(
-            restaurant=self.request.restaurant
-        ).select_related('user').prefetch_related('assigned_tables')
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Gestión de Garzones'
-        return context
-
-
-@restaurant_admin_required
-def create_waiter(request, tenant_slug):
-    """Crear nuevo garzón"""
-    restaurant = request.restaurant
-    
-    if request.method == 'POST':
-        try:
-            # Validar contraseñas
-            password = request.POST.get('password')
-            password_confirm = request.POST.get('password_confirm')
-            
-            if password != password_confirm:
-                messages.error(request, 'Las contraseñas no coinciden.')
-                return render(request, 'restaurants/admin/waiters/form.html', {
-                    'restaurant': restaurant,
-                    'page_title': 'Crear Garzón',
-                    'is_admin_dashboard': True,
-                    'status_choices': Waiter.STATUS_CHOICES,
-                })
-            
-            # Crear usuario
-            username = request.POST.get('username')
-            email = request.POST.get('email')
-            first_name = request.POST.get('first_name')
-            last_name = request.POST.get('last_name')
-            
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                password=password
-            )
-            
-            # Crear perfil de garzón
-            waiter = Waiter.objects.create(
-                restaurant=restaurant,
-                user=user,
-                employee_id=request.POST.get('employee_id', ''),
-                phone=request.POST.get('phone', ''),
-                status=request.POST.get('status', 'active'),
-                shift_start=request.POST.get('shift_start') or None,
-                shift_end=request.POST.get('shift_end') or None,
-            )
-            
-            messages.success(request, f'Garzón "{waiter.full_name}" creado exitosamente.')
-            return redirect('restaurants:admin_waiters', tenant_slug=tenant_slug)
-            
-        except Exception as e:
-            messages.error(request, f'Error al crear el garzón: {e}')
-    
-    context = {
-        'restaurant': restaurant,
-        'page_title': 'Crear Garzón',
-        'is_admin_dashboard': True,
-        'status_choices': Waiter.STATUS_CHOICES,
-    }
-    
-    return render(request, 'restaurants/admin/waiters/form.html', context)
-
-
-@restaurant_admin_required
-def edit_waiter(request, tenant_slug, waiter_id):
-    """Editar garzón"""
-    restaurant = request.restaurant
-    waiter = get_object_or_404(Waiter, id=waiter_id, restaurant=restaurant)
-    
-    if request.method == 'POST':
-        try:
-            # Actualizar usuario
-            user = waiter.user
-            user.first_name = request.POST.get('first_name')
-            user.last_name = request.POST.get('last_name')
-            user.email = request.POST.get('email')
-            
-            if request.POST.get('password'):
-                user.set_password(request.POST.get('password'))
-            
-            user.save()
-            
-            # Actualizar garzón
-            waiter.employee_id = request.POST.get('employee_id', '')
-            waiter.phone = request.POST.get('phone', '')
-            waiter.status = request.POST.get('status')
-            waiter.shift_start = request.POST.get('shift_start') or None
-            waiter.shift_end = request.POST.get('shift_end') or None
-            waiter.save()
-            
-            messages.success(request, f'Garzón "{waiter.full_name}" actualizado exitosamente.')
-            return redirect('restaurants:admin_waiters', tenant_slug=tenant_slug)
-            
-        except Exception as e:
-            messages.error(request, f'Error al actualizar el garzón: {e}')
-    
-    context = {
-        'restaurant': restaurant,
-        'waiter': waiter,
-        'page_title': f'Editar {waiter.full_name}',
-        'is_admin_dashboard': True,
-        'status_choices': Waiter.STATUS_CHOICES,
-    }
-    
-    return render(request, 'restaurants/admin/waiters/form.html', context)
-
-
-@restaurant_admin_required
-@require_POST
-def delete_waiter(request, tenant_slug, waiter_id):
-    """Eliminar garzón (AJAX)"""
-    try:
-        restaurant = request.restaurant
-        waiter = get_object_or_404(Waiter, id=waiter_id, restaurant=restaurant)
-        
-        # Desasignar mesas antes de eliminar
-        waiter.assigned_tables.update(assigned_waiter=None)
-        
-        waiter_name = waiter.full_name
-        
-        # Eliminar el usuario asociado también
-        user = waiter.user
-        waiter.delete()
-        user.delete()
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Garzón "{waiter_name}" eliminado exitosamente.'
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
-
-
-# ============================================================================
 # GESTIÓN DE MESAS
 # ============================================================================
 
@@ -549,24 +391,18 @@ class TablesManagementView(RestaurantAdminMixin, ListView):
     def get_queryset(self):
         return Table.objects.filter(
             restaurant=self.request.restaurant
-        ).select_related('assigned_waiter__user').order_by('number')
+        ).select_related('assigned_waiter_staff__user').order_by('number')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         restaurant = self.request.restaurant
         
-        # Obtener garzones tanto del modelo original como del nuevo
-        try:
-            original_waiters = restaurant.waiters.filter(status='active')
-        except:
-            original_waiters = []
-        
-        new_waiters = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
+        # Sistema de meseros unificado (solo WaiterStaff)
+        waiter_staff = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
         
         context.update({
             'page_title': 'Gestión de Mesas',
-            'waiters': original_waiters,  # Por compatibilidad con las mesas existentes
-            'waiter_staff': new_waiters,
+            'waiter_staff': waiter_staff,
         })
         
         return context
@@ -579,13 +415,16 @@ def create_table_admin(request, tenant_slug):
     
     if request.method == 'POST':
         try:
+            # Solo usar WaiterStaff para asignación
+            assigned_waiter_staff_id = request.POST.get('assigned_waiter_staff') or None
+            
             table = Table.objects.create(
                 restaurant=restaurant,
                 number=request.POST.get('number'),
                 name=request.POST.get('name', ''),
                 capacity=request.POST.get('capacity', 4),
                 location=request.POST.get('location', ''),
-                assigned_waiter_id=request.POST.get('assigned_waiter') or None,
+                assigned_waiter_staff_id=assigned_waiter_staff_id,
             )
             
             messages.success(request, f'Mesa {table.number} creada exitosamente.')
@@ -594,18 +433,12 @@ def create_table_admin(request, tenant_slug):
         except Exception as e:
             messages.error(request, f'Error al crear la mesa: {e}')
     
-    # Obtener garzones tanto del modelo original como del nuevo
-    try:
-        original_waiters = restaurant.waiters.filter(status='active')
-    except:
-        original_waiters = []
-    
-    new_waiters = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
+    # Sistema de meseros unificado (solo WaiterStaff)
+    waiter_staff = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
     
     context = {
         'restaurant': restaurant,
-        'waiters': original_waiters,  # Por compatibilidad con las mesas existentes
-        'waiter_staff': new_waiters,
+        'waiter_staff': waiter_staff,
         'page_title': 'Crear Mesa',
         'is_admin_dashboard': True,
     }
@@ -621,11 +454,14 @@ def edit_table_admin(request, tenant_slug, table_id):
     
     if request.method == 'POST':
         try:
+            # Solo usar WaiterStaff para asignación
+            assigned_waiter_staff_id = request.POST.get('assigned_waiter_staff') or None
+            
             table.number = request.POST.get('number')
             table.name = request.POST.get('name', '')
             table.capacity = request.POST.get('capacity')
             table.location = request.POST.get('location', '')
-            table.assigned_waiter_id = request.POST.get('assigned_waiter') or None
+            table.assigned_waiter_staff_id = assigned_waiter_staff_id
             table.is_active = request.POST.get('is_active') == 'on'
             table.qr_enabled = request.POST.get('qr_enabled') == 'on'
             table.save()
@@ -636,19 +472,13 @@ def edit_table_admin(request, tenant_slug, table_id):
         except Exception as e:
             messages.error(request, f'Error al actualizar la mesa: {e}')
     
-    # Obtener garzones tanto del modelo original como del nuevo
-    try:
-        original_waiters = restaurant.waiters.filter(status='active')
-    except:
-        original_waiters = []
-    
-    new_waiters = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
+    # Sistema de meseros unificado (solo WaiterStaff)
+    waiter_staff = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
     
     context = {
         'restaurant': restaurant,
         'table': table,
-        'waiters': original_waiters,  # Por compatibilidad con las mesas existentes
-        'waiter_staff': new_waiters,
+        'waiter_staff': waiter_staff,
         'page_title': f'Editar Mesa {table.number}',
         'is_admin_dashboard': True,
     }
@@ -819,7 +649,7 @@ class KitchenStaffManagementView(RestaurantAdminMixin, ListView):
     def get_queryset(self):
         return KitchenStaff.objects.filter(
             restaurant=self.request.restaurant
-        ).select_related('user').prefetch_related('specialties')
+        ).select_related('user')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -843,11 +673,16 @@ def create_kitchen_staff(request, tenant_slug):
                 password=request.POST.get('password')
             )
             
+            # Generar ID automáticamente si no se proporciona
+            employee_id = request.POST.get('employee_id', '').strip()
+            if not employee_id:
+                employee_id = KitchenStaff.generate_employee_id(restaurant)
+            
             # Crear personal de cocina
             kitchen_staff = KitchenStaff.objects.create(
                 user=user,
                 restaurant=restaurant,
-                employee_id=request.POST.get('employee_id', ''),
+                employee_id=employee_id,
                 phone=request.POST.get('phone', ''),
                 status=request.POST.get('status'),
                 shift_start=request.POST.get('shift_start') or None,
@@ -888,6 +723,7 @@ def create_kitchen_staff(request, tenant_slug):
         'status_choices': KitchenStaff.STATUS_CHOICES,
         'priority_choices': KitchenStaff.PRIORITY_CHOICES,
         'specialties': KITCHEN_SPECIALTIES,
+        'suggested_employee_id': KitchenStaff.generate_employee_id(restaurant),
     }
     
     return render(request, 'restaurants/admin/kitchen_staff/form.html', context)
@@ -996,7 +832,7 @@ class BarStaffManagementView(RestaurantAdminMixin, ListView):
     def get_queryset(self):
         return BarStaff.objects.filter(
             restaurant=self.request.restaurant
-        ).select_related('user').prefetch_related('certifications')
+        ).select_related('user')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1020,11 +856,16 @@ def create_bar_staff(request, tenant_slug):
                 password=request.POST.get('password')
             )
             
+            # Generar ID automáticamente si no se proporciona
+            employee_id = request.POST.get('employee_id', '').strip()
+            if not employee_id:
+                employee_id = BarStaff.generate_employee_id(restaurant)
+            
             # Crear personal de bar
             bar_staff = BarStaff.objects.create(
                 user=user,
                 restaurant=restaurant,
-                employee_id=request.POST.get('employee_id', ''),
+                employee_id=employee_id,
                 phone=request.POST.get('phone', ''),
                 status=request.POST.get('status'),
                 shift_start=request.POST.get('shift_start') or None,
@@ -1061,6 +902,7 @@ def create_bar_staff(request, tenant_slug):
         'is_admin_dashboard': True,
         'status_choices': BarStaff.STATUS_CHOICES,
         'certifications': BAR_CERTIFICATIONS,
+        'suggested_employee_id': BarStaff.generate_employee_id(restaurant),
     }
     
     return render(request, 'restaurants/admin/bar_staff/form.html', context)
@@ -1165,11 +1007,11 @@ class WaiterStaffManagementView(RestaurantAdminMixin, ListView):
     def get_queryset(self):
         return WaiterStaff.objects.filter(
             restaurant=self.request.restaurant
-        ).select_related('user').prefetch_related('assigned_tables')
+        ).select_related('user')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Gestión de Meseros (Nuevo Sistema)'
+        context['page_title'] = 'Gestión de Meseros'
         return context
 
 
@@ -1189,11 +1031,16 @@ def create_waiter_staff(request, tenant_slug):
                 password=request.POST.get('password')
             )
             
+            # Generar ID automáticamente si no se proporciona
+            employee_id = request.POST.get('employee_id', '').strip()
+            if not employee_id:
+                employee_id = WaiterStaff.generate_employee_id(restaurant)
+            
             # Crear mesero
             waiter_staff = WaiterStaff.objects.create(
                 user=user,
                 restaurant=restaurant,
-                employee_id=request.POST.get('employee_id', ''),
+                employee_id=employee_id,
                 phone=request.POST.get('phone', ''),
                 status=request.POST.get('status'),
                 shift_start=request.POST.get('shift_start') or None,
@@ -1214,6 +1061,7 @@ def create_waiter_staff(request, tenant_slug):
         'page_title': 'Crear Mesero',
         'is_admin_dashboard': True,
         'status_choices': WaiterStaff.STATUS_CHOICES,
+        'suggested_employee_id': WaiterStaff.generate_employee_id(restaurant),
     }
     
     return render(request, 'restaurants/admin/waiter_staff/form.html', context)

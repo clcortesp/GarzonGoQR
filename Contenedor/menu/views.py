@@ -404,7 +404,8 @@ class CartView(TenantMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         cart = Cart(self.request)
-        cart_data = cart.get_cart_data()
+        # Usar include_objects=True para templates que necesitan objetos MenuItem
+        cart_data = cart.get_cart_data(include_objects=True)
         
         context.update({
             'cart': cart_data,

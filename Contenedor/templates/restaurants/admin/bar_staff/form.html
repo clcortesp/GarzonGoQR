@@ -71,9 +71,25 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="employee_id" class="form-label">ID de Empleado</label>
-                                <input type="text" class="form-control" id="employee_id" name="employee_id" 
-                                       value="{% if bar_staff %}{{ bar_staff.employee_id }}{% endif %}"
-                                       placeholder="Ej: BAR001">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="employee_id" name="employee_id" 
+                                           value="{% if bar_staff %}{{ bar_staff.employee_id }}{% else %}{{ suggested_employee_id }}{% endif %}"
+                                           {% if not bar_staff %}readonly{% endif %}>
+                                    {% if not bar_staff %}
+                                        <button type="button" class="btn btn-outline-secondary" 
+                                                onclick="toggleEmployeeIdEdit()" id="edit_employee_id_btn"
+                                                title="Editar ID de empleado">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                                <div class="form-text">
+                                    {% if not bar_staff %}
+                                        Se genera automáticamente. Haz clic en <i class="bi bi-pencil"></i> para personalizar.
+                                    {% else %}
+                                        ID único del empleado en el sistema
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -203,4 +219,27 @@
 </div>
 
 {% csrf_token %}
+
+<script>
+function toggleEmployeeIdEdit() {
+    const input = document.getElementById('employee_id');
+    const button = document.getElementById('edit_employee_id_btn');
+    
+    if (input.hasAttribute('readonly')) {
+        input.removeAttribute('readonly');
+        input.focus();
+        input.select();
+        button.innerHTML = '<i class="bi bi-check"></i>';
+        button.title = 'Confirmar cambio';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-outline-success');
+    } else {
+        input.setAttribute('readonly', true);
+        button.innerHTML = '<i class="bi bi-pencil"></i>';
+        button.title = 'Editar ID de empleado';
+        button.classList.remove('btn-outline-success');
+        button.classList.add('btn-outline-secondary');
+    }
+}
+</script>
 {% endblock %} 

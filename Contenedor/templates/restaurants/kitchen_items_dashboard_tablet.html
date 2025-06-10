@@ -1,0 +1,831 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}🍳 Cocina - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 📱 DISEÑO OPTIMIZADO PARA TABLETS */
+    body {
+        background: linear-gradient(135deg, #ff6b35, #f7931e);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        overflow-x: hidden;
+        min-height: 100vh;
+        margin: 0;
+        padding: 0;
+    }
+
+    .container-fluid {
+        padding: 0;
+        max-width: 100vw;
+    }
+
+    /* HEADER PARA TABLETS */
+    .kitchen-header {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 20px 30px;
+        border-bottom: 3px solid #ff6b35;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .kitchen-header h1 {
+        color: #ff6b35;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .kitchen-header .status-time {
+        font-size: 1.2rem;
+        color: #666;
+        margin-top: 5px;
+    }
+
+    /* ESTADÍSTICAS GRANDES PARA TABLETS */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        padding: 30px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 30px;
+        border-radius: 20px;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        border: 3px solid transparent;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .stat-card.pending {
+        border-color: #ffc107;
+        background: linear-gradient(135deg, #fff3cd, #ffffff);
+    }
+
+    .stat-card.in-progress {
+        border-color: #fd7e14;
+        background: linear-gradient(135deg, #ffe5d1, #ffffff);
+    }
+
+    .stat-card.ready {
+        border-color: #28a745;
+        background: linear-gradient(135deg, #d4edda, #ffffff);
+    }
+
+    .stat-card.completed {
+        border-color: #6c757d;
+        background: linear-gradient(135deg, #e2e3e5, #ffffff);
+    }
+
+    .stat-number {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 10px;
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* SECCIONES DE ITEMS PARA TABLETS */
+    .items-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 25px;
+        padding: 0 30px 30px;
+    }
+
+    .items-section {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 25px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        min-height: 400px;
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #eee;
+    }
+
+    .section-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .section-count {
+        background: #ff6b35;
+        color: white;
+        padding: 8px 15px;
+        border-radius: 50px;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    /* CARDS DE ITEMS OPTIMIZADOS PARA TOUCH */
+    .item-card {
+        background: linear-gradient(135deg, #f8f9fa, #ffffff);
+        border: 2px solid #dee2e6;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 15px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+        min-height: 140px;
+    }
+
+    .item-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        border-color: #ff6b35;
+    }
+
+    .item-card.confirmed {
+        border-left: 6px solid #ffc107;
+        background: linear-gradient(135deg, #fff8e1, #ffffff);
+    }
+
+    .item-card.preparing {
+        border-left: 6px solid #fd7e14;
+        background: linear-gradient(135deg, #ffe5d1, #ffffff);
+        animation: pulse 2s infinite;
+    }
+
+    .item-card.cooking {
+        border-left: 6px solid #dc3545;
+        background: linear-gradient(135deg, #f8d7da, #ffffff);
+        animation: pulse 2s infinite;
+    }
+
+    .item-card.ready {
+        border-left: 6px solid #28a745;
+        background: linear-gradient(135deg, #d4edda, #ffffff);
+        animation: glow 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
+    }
+
+    @keyframes glow {
+        0% { box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3); }
+        100% { box-shadow: 0 8px 25px rgba(40, 167, 69, 0.6); }
+    }
+
+    .item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+    }
+
+    .item-name {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #333;
+        line-height: 1.3;
+        margin: 0;
+    }
+
+    .item-quantity {
+        background: #ff6b35;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 50px;
+        font-size: 1rem;
+        font-weight: 700;
+        min-width: 40px;
+        text-align: center;
+    }
+
+    .item-details {
+        margin-bottom: 15px;
+    }
+
+    .item-order {
+        font-size: 0.95rem;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .item-time {
+        font-size: 0.9rem;
+        color: #888;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .item-instructions {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        padding: 10px;
+        margin: 10px 0;
+        font-size: 0.9rem;
+        color: #856404;
+    }
+
+    /* BOTONES TÁCTILES GRANDES */
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+    }
+
+    .btn-touch {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        min-height: 50px;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-start {
+        background: linear-gradient(135deg, #fd7e14, #ff6b35);
+        color: white;
+    }
+
+    .btn-start:hover {
+        background: linear-gradient(135deg, #e85d04, #e55d4b);
+        transform: translateY(-2px);
+    }
+
+    .btn-ready {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+    }
+
+    .btn-ready:hover {
+        background: linear-gradient(135deg, #1e7e34, #17a2b8);
+        transform: translateY(-2px);
+    }
+
+    .btn-update {
+        background: linear-gradient(135deg, #6c757d, #495057);
+        color: white;
+    }
+
+    .btn-update:hover {
+        background: linear-gradient(135deg, #495057, #343a40);
+        transform: translateY(-2px);
+    }
+
+    /* ESTADO VACÍO */
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        opacity: 0.5;
+    }
+
+    .empty-state h4 {
+        margin-bottom: 10px;
+        color: #495057;
+    }
+
+    .empty-state p {
+        margin: 0;
+        font-size: 0.9rem;
+    }
+
+    /* INDICADOR DE CONEXIÓN */
+    .connection-status {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 10px 15px;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        z-index: 1001;
+    }
+
+    .connection-status.online {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .connection-status.offline {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    /* RESPONSIVE PARA TABLETS PEQUEÑAS */
+    @media (max-width: 768px) {
+        .stats-container {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .items-grid {
+            grid-template-columns: 1fr;
+            padding: 0 20px 20px;
+        }
+
+        .kitchen-header h1 {
+            font-size: 2rem;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+        }
+    }
+
+    /* MODO OSCURO PARA TABLETS */
+    @media (prefers-color-scheme: dark) {
+        body {
+            background: linear-gradient(135deg, #2d3748, #1a202c);
+        }
+
+        .kitchen-header,
+        .stat-card,
+        .items-section,
+        .item-card {
+            background: rgba(45, 55, 72, 0.95);
+            color: #e2e8f0;
+        }
+
+        .kitchen-header h1 {
+            color: #ff6b35;
+        }
+
+        .item-card {
+            border-color: #4a5568;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- HEADER PARA TABLETS -->
+    <div class="kitchen-header">
+        <h1>
+            🍳 Dashboard de Cocina
+            <span class="badge badge-warning">{{ restaurant.name }}</span>
+        </h1>
+        <div class="status-time">
+            <span id="current-time"></span> | 
+            <span id="active-orders">{{ stats.total_pending|add:stats.total_in_progress }} órdenes activas</span>
+        </div>
+    </div>
+
+    <!-- ESTADÍSTICAS GRANDES -->
+    <div class="stats-container">
+        <div class="stat-card pending">
+            <div class="stat-number">{{ stats.total_pending }}</div>
+            <div class="stat-label">Pendientes</div>
+        </div>
+        <div class="stat-card in-progress">
+            <div class="stat-number">{{ stats.total_in_progress }}</div>
+            <div class="stat-label">En Proceso</div>
+        </div>
+        <div class="stat-card ready">
+            <div class="stat-number">{{ stats.total_ready }}</div>
+            <div class="stat-label">Listos</div>
+        </div>
+        <div class="stat-card completed">
+            <div class="stat-number">{{ recent_ready|length }}</div>
+            <div class="stat-label">Completados Hoy</div>
+        </div>
+    </div>
+
+    <!-- GRID DE SECCIONES -->
+    <div class="items-grid">
+        <!-- ITEMS CONFIRMADOS -->
+        <div class="items-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    📝 Confirmados
+                </h3>
+                <span class="section-count">{{ confirmed_items|length }}</span>
+            </div>
+
+            {% if confirmed_items %}
+                {% for item in confirmed_items %}
+                <div class="item-card confirmed" data-item-id="{{ item.id }}">
+                    <div class="item-header">
+                        <h4 class="item-name">{{ item.menu_item.name }}</h4>
+                        <div class="item-quantity">{{ item.quantity }}x</div>
+                    </div>
+                    
+                    <div class="item-details">
+                        <div class="item-order">
+                            📋 Orden #{{ item.order.order_number }}
+                            {% if item.order.table %}
+                                | 🪑 Mesa {{ item.order.table.number }}
+                            {% endif %}
+                        </div>
+                        <div class="item-time">
+                            🕐 {{ item.created_at|date:"H:i" }}
+                            | ⏱️ {{ item.estimated_prep_time }} min
+                        </div>
+                    </div>
+
+                    {% if item.special_instructions %}
+                    <div class="item-instructions">
+                        💬 {{ item.special_instructions }}
+                    </div>
+                    {% endif %}
+
+                    <div class="action-buttons">
+                        <button class="btn-touch btn-start" onclick="startPreparation({{ item.id }})">
+                            🔥 Iniciar Cocina
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-clipboard-check"></i>
+                    <h4>Sin items confirmados</h4>
+                    <p>Nuevos pedidos aparecerán aquí</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- ITEMS EN PREPARACIÓN -->
+        <div class="items-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    🔥 En Cocina
+                </h3>
+                <span class="section-count">{{ preparing_items|length }}</span>
+            </div>
+
+            {% if preparing_items %}
+                {% for item in preparing_items %}
+                <div class="item-card preparing" data-item-id="{{ item.id }}">
+                    <div class="item-header">
+                        <h4 class="item-name">{{ item.menu_item.name }}</h4>
+                        <div class="item-quantity">{{ item.quantity }}x</div>
+                    </div>
+                    
+                    <div class="item-details">
+                        <div class="item-order">
+                            📋 Orden #{{ item.order.order_number }}
+                            {% if item.order.table %}
+                                | 🪑 Mesa {{ item.order.table.number }}
+                            {% endif %}
+                        </div>
+                        <div class="item-time">
+                            🔥 Iniciado: {{ item.preparation_started_at|date:"H:i" }}
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn-touch btn-ready" onclick="markReady({{ item.id }})">
+                            ✅ Marcar Listo
+                        </button>
+                        <button class="btn-touch btn-update" onclick="updateStatus({{ item.id }})">
+                            🔄 Actualizar
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-fire"></i>
+                    <h4>Sin items en cocina</h4>
+                    <p>Items en preparación aparecerán aquí</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- ITEMS LISTOS -->
+        <div class="items-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    ✅ Listos para Servir
+                </h3>
+                <span class="section-count">{{ ready_items|length }}</span>
+            </div>
+
+            {% if ready_items %}
+                {% for item in ready_items %}
+                <div class="item-card ready" data-item-id="{{ item.id }}">
+                    <div class="item-header">
+                        <h4 class="item-name">{{ item.menu_item.name }}</h4>
+                        <div class="item-quantity">{{ item.quantity }}x</div>
+                    </div>
+                    
+                    <div class="item-details">
+                        <div class="item-order">
+                            📋 Orden #{{ item.order.order_number }}
+                            {% if item.order.table %}
+                                | 🪑 Mesa {{ item.order.table.number }}
+                            {% endif %}
+                        </div>
+                        <div class="item-time">
+                            ✅ Completado: {{ item.preparation_completed_at|date:"H:i" }}
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn-touch btn-ready" disabled>
+                            🎉 ¡Listo para Mesero!
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-check-circle"></i>
+                    <h4>Sin items listos</h4>
+                    <p>Items completados aparecerán aquí</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- INDICADOR DE CONEXIÓN -->
+<div class="connection-status online" id="connectionStatus">
+    🟢 Conectado
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 🔄 SISTEMA DE AUTO-REFRESH PARA TABLETS
+class KitchenTabletDashboard {
+    constructor() {
+        this.refreshInterval = 15000; // 15 segundos para tablets
+        this.connectionStatus = document.getElementById('connectionStatus');
+        this.isOnline = true;
+        
+        this.init();
+    }
+
+    init() {
+        this.updateTime();
+        setInterval(() => this.updateTime(), 1000);
+        
+        this.startAutoRefresh();
+        this.setupConnectionMonitoring();
+        
+        console.log('🍳 Dashboard de Cocina para Tablets iniciado');
+    }
+
+    updateTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('es-CO', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+
+    startAutoRefresh() {
+        setInterval(() => {
+            if (this.isOnline) {
+                this.refreshData();
+            }
+        }, this.refreshInterval);
+    }
+
+    refreshData() {
+        fetch('{% url "restaurants:kitchen_items_api" tenant_slug=restaurant.slug %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.updateItemsDisplay(data.items);
+                    this.setConnectionStatus(true);
+                }
+            })
+            .catch(error => {
+                console.error('Error refrescando datos:', error);
+                this.setConnectionStatus(false);
+            });
+    }
+
+    updateItemsDisplay(items) {
+        // Actualizar contadores
+        const confirmedCount = items.filter(item => item.status === 'confirmed').length;
+        const preparingCount = items.filter(item => ['preparing_kitchen', 'cooking', 'plating'].includes(item.status)).length;
+        const readyCount = items.filter(item => item.status === 'kitchen_ready').length;
+
+        // Actualizar estadísticas
+        document.querySelector('.stat-card.pending .stat-number').textContent = confirmedCount;
+        document.querySelector('.stat-card.in-progress .stat-number').textContent = preparingCount;
+        document.querySelector('.stat-card.ready .stat-number').textContent = readyCount;
+
+        console.log(`📊 Stats actualizadas: ${confirmedCount} pendientes, ${preparingCount} en proceso, ${readyCount} listos`);
+    }
+
+    setConnectionStatus(online) {
+        this.isOnline = online;
+        const status = this.connectionStatus;
+        
+        if (online) {
+            status.className = 'connection-status online';
+            status.innerHTML = '🟢 Conectado';
+        } else {
+            status.className = 'connection-status offline';
+            status.innerHTML = '🔴 Sin Conexión';
+        }
+    }
+
+    setupConnectionMonitoring() {
+        window.addEventListener('online', () => this.setConnectionStatus(true));
+        window.addEventListener('offline', () => this.setConnectionStatus(false));
+    }
+}
+
+// 🍳 FUNCIONES DE ACCIÓN PARA TABLETS
+function startPreparation(itemId) {
+    const button = event.target;
+    button.disabled = true;
+    button.innerHTML = '⏳ Iniciando...';
+
+    fetch(`{% url "restaurants:start_item_preparation" tenant_slug=restaurant.slug item_id=0 %}`.replace('0', itemId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('✅ Preparación iniciada correctamente', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('❌ Error: ' + data.error, 'error');
+            button.disabled = false;
+            button.innerHTML = '🔥 Iniciar Cocina';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('❌ Error de conexión', 'error');
+        button.disabled = false;
+        button.innerHTML = '🔥 Iniciar Cocina';
+    });
+}
+
+function markReady(itemId) {
+    const button = event.target;
+    button.disabled = true;
+    button.innerHTML = '⏳ Marcando...';
+
+    fetch(`{% url "restaurants:mark_item_ready" tenant_slug=restaurant.slug item_id=0 %}`.replace('0', itemId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('🎉 Item marcado como listo', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('❌ Error: ' + data.error, 'error');
+            button.disabled = false;
+            button.innerHTML = '✅ Marcar Listo';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('❌ Error de conexión', 'error');
+        button.disabled = false;
+        button.innerHTML = '✅ Marcar Listo';
+    });
+}
+
+function updateStatus(itemId) {
+    // Modal simple para actualizar estado
+    const newStatus = prompt('Nuevo estado:\n- preparing_kitchen\n- cooking\n- plating\n- kitchen_ready');
+    
+    if (newStatus) {
+        fetch(`{% url "restaurants:update_kitchen_item_status" tenant_slug=restaurant.slug item_id=0 %}`.replace('0', itemId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `status=${newStatus}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('✅ Estado actualizado', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('❌ Error: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('❌ Error de conexión', 'error');
+        });
+    }
+}
+
+// 📱 SISTEMA DE TOASTS PARA TABLETS
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = `toast-message toast-${type}`;
+    toast.innerHTML = message;
+    
+    toast.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 30px;
+        background: ${type === 'success' ? '#d4edda' : '#f8d7da'};
+        color: ${type === 'success' ? '#155724' : '#721c24'};
+        padding: 15px 25px;
+        border-radius: 10px;
+        border: 2px solid ${type === 'success' ? '#c3e6cb' : '#f5c6cb'};
+        font-size: 1.1rem;
+        font-weight: 600;
+        z-index: 2000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        max-width: 400px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Animar entrada
+    setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Remover después de 4 segundos
+    setTimeout(() => {
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 4000);
+}
+
+// 🚀 INICIALIZAR DASHBOARD
+document.addEventListener('DOMContentLoaded', function() {
+    window.kitchenDashboard = new KitchenTabletDashboard();
+});
+</script>
+{% endblock %} 

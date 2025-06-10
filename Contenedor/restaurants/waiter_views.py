@@ -16,28 +16,64 @@ def waiter_dashboard(request, tenant_slug):
     """
     Dashboard principal para garzones
     """
+    print(f"🔍 waiter_dashboard called for user: {request.user.username}")
+    print(f"🔍 tenant_slug: {tenant_slug}")
+    
     try:
         restaurant = request.restaurant
+        print(f"🔍 restaurant: {restaurant.name}")
         
-        # Verificar si el usuario es un garzón
+        # Verificar si el usuario es un garzón (buscar en ambos modelos)
+        waiter = None
         try:
-            waiter = Waiter.objects.get(restaurant=restaurant, user=request.user)
-        except Waiter.DoesNotExist:
-            messages.error(request, 'No tienes permisos de garzón para este restaurante.')
-            return redirect('restaurants:home', tenant_slug=tenant_slug)
+            # Primero buscar en el modelo nuevo WaiterStaff
+            from .models import WaiterStaff
+            waiter = WaiterStaff.objects.get(restaurant=restaurant, user=request.user)
+            print(f"✅ Found WaiterStaff: {waiter.full_name}")
+        except WaiterStaff.DoesNotExist:
+            print("❌ Not found in WaiterStaff, trying Waiter model...")
+            try:
+                # Si no está ahí, buscar en el modelo antiguo Waiter
+                waiter = Waiter.objects.get(restaurant=restaurant, user=request.user)
+                print(f"✅ Found Waiter: {waiter.full_name}")
+            except Waiter.DoesNotExist:
+                print("❌ Not found in Waiter model either!")
+                messages.error(request, 'No tienes permisos de garzón para este restaurante.')
+                return redirect('restaurants:home', tenant_slug=tenant_slug)
         
         # Obtener datos del dashboard de manera más robusta
         try:
-            dashboard_data = WaiterDashboardService.get_dashboard_data(waiter)
+            # Solo usar WaiterDashboardService si es un Waiter (modelo antiguo)
+            if hasattr(waiter, '_meta') and waiter._meta.model_name == 'waiter':
+                dashboard_data = WaiterDashboardService.get_dashboard_data(waiter)
+            else:
+                # Para WaiterStaff, crear datos básicos
+                raise Exception("Using WaiterStaff - fallback to manual data")
         except Exception as service_error:
             print(f"Error en WaiterDashboardService: {service_error}")
             # Fallback: obtener datos básicos manualmente
+            # Para WaiterStaff, las notificaciones no existen aún, así que usamos lista vacía
+            if hasattr(waiter, '_meta') and waiter._meta.model_name == 'waiterstaff':
+                pending_notifications = []  # WaiterStaff no tiene notificaciones aún
+                assigned_tables = waiter.assigned_tables.filter(is_active=True) if hasattr(waiter, 'assigned_tables') else []
+            else:
+                # Para Waiter, intentar obtener notificaciones
+                try:
+                    pending_notifications = WaiterNotification.objects.filter(waiter=waiter, status='pending').order_by('-created_at')[:5]
+                except:
+                    pending_notifications = []
+                assigned_tables = waiter.assigned_tables.filter(is_active=True) if hasattr(waiter, 'assigned_tables') else []
+            
+            # Obtener pedidos activos usando el nuevo servicio
+            from .waiter_staff_notifications import WaiterStaffNotificationService
+            active_orders = WaiterStaffNotificationService.get_orders_for_waiter(waiter)
+            
             dashboard_data = {
                 'waiter': waiter,
-                'pending_notifications': WaiterNotification.objects.filter(waiter=waiter, status='pending').order_by('-created_at')[:5],
-                'assigned_tables': waiter.assigned_tables.filter(is_active=True) if hasattr(waiter, 'assigned_tables') else [],
-                'active_orders': [],
-                'stats': {'total_orders': 0},
+                'pending_notifications': pending_notifications,
+                'assigned_tables': assigned_tables,
+                'active_orders': active_orders,
+                'stats': {'total_orders': active_orders.count()},
                 'is_available': getattr(waiter, 'is_available', True),
                 'is_working_hours': True,
             }
