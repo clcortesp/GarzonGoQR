@@ -15,7 +15,7 @@ import qrcode
 from io import BytesIO
 import base64
 
-from .models import Restaurant, Table, Waiter, WaiterNotification
+from .models import Restaurant, Table, Waiter, WaiterNotification, KitchenStaff, BarStaff, WaiterStaff
 from menu.models import MenuItem, MenuCategory, MenuVariant, MenuAddon
 from orders.models import Order, OrderItem
 from django.contrib.auth.models import User
@@ -134,8 +134,22 @@ class RestaurantAdminDashboard(RestaurantAdminMixin, TemplateView):
             total_revenue=Sum('total_price')
         ).order_by('-total_quantity')[:10]
         
-        # Garzones activos
-        active_waiters = restaurant.waiters.filter(status='active')
+        # Personal activo usando los nombres correctos de relacionados Django
+        
+        # KitchenStaff, BarStaff y WaiterStaff heredan de RestaurantEmployee que tiene restaurant = ForeignKey(Restaurant)
+        active_kitchen_staff = KitchenStaff.objects.filter(restaurant=restaurant, status='active')
+        active_bar_staff = BarStaff.objects.filter(restaurant=restaurant, status='active')
+        active_waiter_staff = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
+        
+        # Mantener compatibilidad con el modelo original Waiter que tiene related_name='waiters'
+        try:
+            active_waiters = restaurant.waiters.filter(status='active')
+            active_waiters_count = active_waiters.count()
+        except:
+            active_waiters = []
+            active_waiters_count = 0
+        
+        total_active_staff = active_waiters_count + active_kitchen_staff.count() + active_bar_staff.count() + active_waiter_staff.count()
         
         # Mesas con problemas
         tables_without_waiter = restaurant.tables.filter(assigned_waiter=None, is_active=True)
@@ -167,14 +181,28 @@ class RestaurantAdminDashboard(RestaurantAdminMixin, TemplateView):
             # Datos para el dashboard
             'pending_orders': pending_orders,
             'top_products': top_products,
-            'active_waiters_count': active_waiters.count(),
+            'active_waiters_count': active_waiters_count,
+            'total_active_staff': total_active_staff,
+            'staff_breakdown': {
+                'waiters': active_waiters_count,
+                'kitchen_staff': active_kitchen_staff.count(),
+                'bar_staff': active_bar_staff.count(),
+                'waiter_staff': active_waiter_staff.count(),
+            },
             'total_tables': restaurant.tables.count(),
             'tables_without_waiter': tables_without_waiter,
             
             # Alertas
             'alerts': {
                 'tables_without_waiter': tables_without_waiter.count(),
-                'inactive_waiters': restaurant.waiters.filter(status='inactive').count(),
+                'inactive_waiters': restaurant.waiters.filter(status='inactive').count() if hasattr(restaurant, 'waiters') else 0,
+                'inactive_kitchen_staff': KitchenStaff.objects.filter(restaurant=restaurant, status='inactive').count(),
+                'inactive_bar_staff': BarStaff.objects.filter(restaurant=restaurant, status='inactive').count(),
+                'staff_without_shifts': (
+                    KitchenStaff.objects.filter(restaurant=restaurant, shift_start__isnull=True).count() +
+                    BarStaff.objects.filter(restaurant=restaurant, shift_start__isnull=True).count() +
+                    WaiterStaff.objects.filter(restaurant=restaurant, shift_start__isnull=True).count()
+                ),
             },
             
             # Configuración de QR
@@ -527,9 +555,18 @@ class TablesManagementView(RestaurantAdminMixin, ListView):
         context = super().get_context_data(**kwargs)
         restaurant = self.request.restaurant
         
+        # Obtener garzones tanto del modelo original como del nuevo
+        try:
+            original_waiters = restaurant.waiters.filter(status='active')
+        except:
+            original_waiters = []
+        
+        new_waiters = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
+        
         context.update({
             'page_title': 'Gestión de Mesas',
-            'waiters': restaurant.waiters.filter(status='active'),
+            'waiters': original_waiters,  # Por compatibilidad con las mesas existentes
+            'waiter_staff': new_waiters,
         })
         
         return context
@@ -557,9 +594,18 @@ def create_table_admin(request, tenant_slug):
         except Exception as e:
             messages.error(request, f'Error al crear la mesa: {e}')
     
+    # Obtener garzones tanto del modelo original como del nuevo
+    try:
+        original_waiters = restaurant.waiters.filter(status='active')
+    except:
+        original_waiters = []
+    
+    new_waiters = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
+    
     context = {
         'restaurant': restaurant,
-        'waiters': restaurant.waiters.filter(status='active'),
+        'waiters': original_waiters,  # Por compatibilidad con las mesas existentes
+        'waiter_staff': new_waiters,
         'page_title': 'Crear Mesa',
         'is_admin_dashboard': True,
     }
@@ -590,10 +636,19 @@ def edit_table_admin(request, tenant_slug, table_id):
         except Exception as e:
             messages.error(request, f'Error al actualizar la mesa: {e}')
     
+    # Obtener garzones tanto del modelo original como del nuevo
+    try:
+        original_waiters = restaurant.waiters.filter(status='active')
+    except:
+        original_waiters = []
+    
+    new_waiters = WaiterStaff.objects.filter(restaurant=restaurant, status='active')
+    
     context = {
         'restaurant': restaurant,
         'table': table,
-        'waiters': restaurant.waiters.filter(status='active'),
+        'waiters': original_waiters,  # Por compatibilidad con las mesas existentes
+        'waiter_staff': new_waiters,
         'page_title': f'Editar Mesa {table.number}',
         'is_admin_dashboard': True,
     }
@@ -749,3 +804,487 @@ class SalesReportView(RestaurantAdminMixin, TemplateView):
         })
         
         return context 
+
+
+# ============================================================================
+# GESTIÓN DE PERSONAL DE COCINA
+# ============================================================================
+
+class KitchenStaffManagementView(RestaurantAdminMixin, ListView):
+    """Vista para gestión de personal de cocina"""
+    model = KitchenStaff
+    template_name = 'restaurants/admin/kitchen_staff/list.html'
+    context_object_name = 'kitchen_staff'
+    
+    def get_queryset(self):
+        return KitchenStaff.objects.filter(
+            restaurant=self.request.restaurant
+        ).select_related('user').prefetch_related('specialties')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Gestión de Personal de Cocina'
+        return context
+
+
+@restaurant_admin_required
+def create_kitchen_staff(request, tenant_slug):
+    """Crear personal de cocina"""
+    restaurant = request.restaurant
+    
+    if request.method == 'POST':
+        try:
+            # Crear usuario
+            user = User.objects.create_user(
+                username=request.POST.get('username'),
+                first_name=request.POST.get('first_name'),
+                last_name=request.POST.get('last_name'),
+                email=request.POST.get('email'),
+                password=request.POST.get('password')
+            )
+            
+            # Crear personal de cocina
+            kitchen_staff = KitchenStaff.objects.create(
+                user=user,
+                restaurant=restaurant,
+                employee_id=request.POST.get('employee_id', ''),
+                phone=request.POST.get('phone', ''),
+                status=request.POST.get('status'),
+                shift_start=request.POST.get('shift_start') or None,
+                shift_end=request.POST.get('shift_end') or None,
+                priority_level=request.POST.get('priority_level', 'medium'),
+                years_experience=request.POST.get('years_experience', 0)
+            )
+            
+            # Agregar especialidades si se proporcionaron
+            specialties = request.POST.getlist('specialties')
+            kitchen_staff.specialties = specialties
+            kitchen_staff.save()
+            
+            messages.success(request, f'Personal de cocina "{kitchen_staff.full_name}" creado exitosamente.')
+            return redirect('restaurants:admin_kitchen_staff', tenant_slug=tenant_slug)
+            
+        except Exception as e:
+            messages.error(request, f'Error al crear el personal de cocina: {e}')
+    
+    # Especialidades predefinidas para cocina
+    KITCHEN_SPECIALTIES = [
+        {'id': 'pasta', 'name': 'Pasta y Fideos'},
+        {'id': 'pizza', 'name': 'Pizza'},
+        {'id': 'carnes', 'name': 'Carnes y Parrilla'},
+        {'id': 'pescados', 'name': 'Pescados y Mariscos'},
+        {'id': 'ensaladas', 'name': 'Ensaladas'},
+        {'id': 'sopas', 'name': 'Sopas y Cremas'},
+        {'id': 'postres', 'name': 'Postres'},
+        {'id': 'comida_rapida', 'name': 'Comida Rápida'},
+        {'id': 'reposteria', 'name': 'Repostería'},
+        {'id': 'cocina_internacional', 'name': 'Cocina Internacional'},
+    ]
+    
+    context = {
+        'restaurant': restaurant,
+        'page_title': 'Crear Personal de Cocina',
+        'is_admin_dashboard': True,
+        'status_choices': KitchenStaff.STATUS_CHOICES,
+        'priority_choices': KitchenStaff.PRIORITY_CHOICES,
+        'specialties': KITCHEN_SPECIALTIES,
+    }
+    
+    return render(request, 'restaurants/admin/kitchen_staff/form.html', context)
+
+
+@restaurant_admin_required
+def edit_kitchen_staff(request, tenant_slug, staff_id):
+    """Editar personal de cocina"""
+    restaurant = request.restaurant
+    kitchen_staff = get_object_or_404(KitchenStaff, id=staff_id, restaurant=restaurant)
+    
+    if request.method == 'POST':
+        try:
+            # Actualizar usuario
+            user = kitchen_staff.user
+            user.first_name = request.POST.get('first_name')
+            user.last_name = request.POST.get('last_name')
+            user.email = request.POST.get('email')
+            
+            if request.POST.get('password'):
+                user.set_password(request.POST.get('password'))
+            
+            user.save()
+            
+            # Actualizar personal de cocina
+            kitchen_staff.employee_id = request.POST.get('employee_id', '')
+            kitchen_staff.phone = request.POST.get('phone', '')
+            kitchen_staff.status = request.POST.get('status')
+            kitchen_staff.shift_start = request.POST.get('shift_start') or None
+            kitchen_staff.shift_end = request.POST.get('shift_end') or None
+            kitchen_staff.priority_level = request.POST.get('priority_level', 'medium')
+            kitchen_staff.years_experience = request.POST.get('years_experience', 0)
+            kitchen_staff.save()
+            
+            # Actualizar especialidades
+            specialties = request.POST.getlist('specialties')
+            kitchen_staff.specialties = specialties
+            
+            messages.success(request, f'Personal de cocina "{kitchen_staff.full_name}" actualizado exitosamente.')
+            return redirect('restaurants:admin_kitchen_staff', tenant_slug=tenant_slug)
+            
+        except Exception as e:
+            messages.error(request, f'Error al actualizar el personal de cocina: {e}')
+    
+    # Especialidades predefinidas para cocina (mismas que en create)
+    KITCHEN_SPECIALTIES = [
+        {'id': 'pasta', 'name': 'Pasta y Fideos'},
+        {'id': 'pizza', 'name': 'Pizza'},
+        {'id': 'carnes', 'name': 'Carnes y Parrilla'},
+        {'id': 'pescados', 'name': 'Pescados y Mariscos'},
+        {'id': 'ensaladas', 'name': 'Ensaladas'},
+        {'id': 'sopas', 'name': 'Sopas y Cremas'},
+        {'id': 'postres', 'name': 'Postres'},
+        {'id': 'comida_rapida', 'name': 'Comida Rápida'},
+        {'id': 'reposteria', 'name': 'Repostería'},
+        {'id': 'cocina_internacional', 'name': 'Cocina Internacional'},
+    ]
+    
+    context = {
+        'restaurant': restaurant,
+        'kitchen_staff': kitchen_staff,
+        'page_title': f'Editar {kitchen_staff.full_name}',
+        'is_admin_dashboard': True,
+        'status_choices': KitchenStaff.STATUS_CHOICES,
+        'priority_choices': KitchenStaff.PRIORITY_CHOICES,
+        'specialties': KITCHEN_SPECIALTIES,
+    }
+    
+    return render(request, 'restaurants/admin/kitchen_staff/form.html', context)
+
+
+@restaurant_admin_required
+@require_POST
+def delete_kitchen_staff(request, tenant_slug, staff_id):
+    """Eliminar personal de cocina"""
+    restaurant = request.restaurant
+    kitchen_staff = get_object_or_404(KitchenStaff, id=staff_id, restaurant=restaurant)
+    
+    try:
+        staff_name = kitchen_staff.full_name
+        user = kitchen_staff.user
+        kitchen_staff.delete()
+        user.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Personal de cocina "{staff_name}" eliminado exitosamente.'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+# ============================================================================
+# GESTIÓN DE PERSONAL DE BAR
+# ============================================================================
+
+class BarStaffManagementView(RestaurantAdminMixin, ListView):
+    """Vista para gestión de personal de bar"""
+    model = BarStaff
+    template_name = 'restaurants/admin/bar_staff/list.html'
+    context_object_name = 'bar_staff'
+    
+    def get_queryset(self):
+        return BarStaff.objects.filter(
+            restaurant=self.request.restaurant
+        ).select_related('user').prefetch_related('certifications')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Gestión de Personal de Bar'
+        return context
+
+
+@restaurant_admin_required
+def create_bar_staff(request, tenant_slug):
+    """Crear personal de bar"""
+    restaurant = request.restaurant
+    
+    if request.method == 'POST':
+        try:
+            # Crear usuario
+            user = User.objects.create_user(
+                username=request.POST.get('username'),
+                first_name=request.POST.get('first_name'),
+                last_name=request.POST.get('last_name'),
+                email=request.POST.get('email'),
+                password=request.POST.get('password')
+            )
+            
+            # Crear personal de bar
+            bar_staff = BarStaff.objects.create(
+                user=user,
+                restaurant=restaurant,
+                employee_id=request.POST.get('employee_id', ''),
+                phone=request.POST.get('phone', ''),
+                status=request.POST.get('status'),
+                shift_start=request.POST.get('shift_start') or None,
+                shift_end=request.POST.get('shift_end') or None,
+                can_serve_alcohol=request.POST.get('can_serve_alcohol') == 'on',
+                years_experience=request.POST.get('years_experience', 0)
+            )
+            
+            # Agregar certificaciones si se proporcionaron
+            certifications = request.POST.getlist('certifications')
+            bar_staff.certifications = certifications
+            bar_staff.save()
+            
+            messages.success(request, f'Personal de bar "{bar_staff.full_name}" creado exitosamente.')
+            return redirect('restaurants:admin_bar_staff', tenant_slug=tenant_slug)
+            
+        except Exception as e:
+            messages.error(request, f'Error al crear el personal de bar: {e}')
+    
+    # Certificaciones predefinidas para bar
+    BAR_CERTIFICATIONS = [
+        {'id': 'bartender', 'name': 'Certificación de Bartender'},
+        {'id': 'sommelier', 'name': 'Sommelier'},
+        {'id': 'barista', 'name': 'Barista Profesional'},
+        {'id': 'mixologia', 'name': 'Mixología Avanzada'},
+        {'id': 'responsable_consumo', 'name': 'Servicio Responsable de Alcohol'},
+        {'id': 'higiene_alimentos', 'name': 'Manipulación de Alimentos'},
+        {'id': 'primeros_auxilios', 'name': 'Primeros Auxilios'},
+    ]
+    
+    context = {
+        'restaurant': restaurant,
+        'page_title': 'Crear Personal de Bar',
+        'is_admin_dashboard': True,
+        'status_choices': BarStaff.STATUS_CHOICES,
+        'certifications': BAR_CERTIFICATIONS,
+    }
+    
+    return render(request, 'restaurants/admin/bar_staff/form.html', context)
+
+
+@restaurant_admin_required
+def edit_bar_staff(request, tenant_slug, staff_id):
+    """Editar personal de bar"""
+    restaurant = request.restaurant
+    bar_staff = get_object_or_404(BarStaff, id=staff_id, restaurant=restaurant)
+    
+    if request.method == 'POST':
+        try:
+            # Actualizar usuario
+            user = bar_staff.user
+            user.first_name = request.POST.get('first_name')
+            user.last_name = request.POST.get('last_name')
+            user.email = request.POST.get('email')
+            
+            if request.POST.get('password'):
+                user.set_password(request.POST.get('password'))
+            
+            user.save()
+            
+            # Actualizar personal de bar
+            bar_staff.employee_id = request.POST.get('employee_id', '')
+            bar_staff.phone = request.POST.get('phone', '')
+            bar_staff.status = request.POST.get('status')
+            bar_staff.shift_start = request.POST.get('shift_start') or None
+            bar_staff.shift_end = request.POST.get('shift_end') or None
+            bar_staff.can_serve_alcohol = request.POST.get('can_serve_alcohol') == 'on'
+            bar_staff.years_experience = request.POST.get('years_experience', 0)
+            bar_staff.save()
+            
+            # Actualizar certificaciones
+            certifications = request.POST.getlist('certifications')
+            bar_staff.certifications = certifications
+            
+            messages.success(request, f'Personal de bar "{bar_staff.full_name}" actualizado exitosamente.')
+            return redirect('restaurants:admin_bar_staff', tenant_slug=tenant_slug)
+            
+        except Exception as e:
+            messages.error(request, f'Error al actualizar el personal de bar: {e}')
+    
+    # Certificaciones predefinidas para bar (mismas que en create)
+    BAR_CERTIFICATIONS = [
+        {'id': 'bartender', 'name': 'Certificación de Bartender'},
+        {'id': 'sommelier', 'name': 'Sommelier'},
+        {'id': 'barista', 'name': 'Barista Profesional'},
+        {'id': 'mixologia', 'name': 'Mixología Avanzada'},
+        {'id': 'responsable_consumo', 'name': 'Servicio Responsable de Alcohol'},
+        {'id': 'higiene_alimentos', 'name': 'Manipulación de Alimentos'},
+        {'id': 'primeros_auxilios', 'name': 'Primeros Auxilios'},
+    ]
+    
+    context = {
+        'restaurant': restaurant,
+        'bar_staff': bar_staff,
+        'page_title': f'Editar {bar_staff.full_name}',
+        'is_admin_dashboard': True,
+        'status_choices': BarStaff.STATUS_CHOICES,
+        'certifications': BAR_CERTIFICATIONS,
+    }
+    
+    return render(request, 'restaurants/admin/bar_staff/form.html', context)
+
+
+@restaurant_admin_required
+@require_POST
+def delete_bar_staff(request, tenant_slug, staff_id):
+    """Eliminar personal de bar"""
+    restaurant = request.restaurant
+    bar_staff = get_object_or_404(BarStaff, id=staff_id, restaurant=restaurant)
+    
+    try:
+        staff_name = bar_staff.full_name
+        user = bar_staff.user
+        bar_staff.delete()
+        user.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Personal de bar "{staff_name}" eliminado exitosamente.'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+# ============================================================================
+# GESTIÓN DE PERSONAL DE MESEROS (NUEVO MODELO)
+# ============================================================================
+
+class WaiterStaffManagementView(RestaurantAdminMixin, ListView):
+    """Vista para gestión de personal de meseros (nuevo modelo)"""
+    model = WaiterStaff
+    template_name = 'restaurants/admin/waiter_staff/list.html'
+    context_object_name = 'waiter_staff'
+    
+    def get_queryset(self):
+        return WaiterStaff.objects.filter(
+            restaurant=self.request.restaurant
+        ).select_related('user').prefetch_related('assigned_tables')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Gestión de Meseros (Nuevo Sistema)'
+        return context
+
+
+@restaurant_admin_required
+def create_waiter_staff(request, tenant_slug):
+    """Crear mesero (nuevo sistema)"""
+    restaurant = request.restaurant
+    
+    if request.method == 'POST':
+        try:
+            # Crear usuario
+            user = User.objects.create_user(
+                username=request.POST.get('username'),
+                first_name=request.POST.get('first_name'),
+                last_name=request.POST.get('last_name'),
+                email=request.POST.get('email'),
+                password=request.POST.get('password')
+            )
+            
+            # Crear mesero
+            waiter_staff = WaiterStaff.objects.create(
+                user=user,
+                restaurant=restaurant,
+                employee_id=request.POST.get('employee_id', ''),
+                phone=request.POST.get('phone', ''),
+                status=request.POST.get('status'),
+                shift_start=request.POST.get('shift_start') or None,
+                shift_end=request.POST.get('shift_end') or None,
+                years_experience=request.POST.get('years_experience', 0),
+                tips_percentage=request.POST.get('tips_percentage') or None,
+                max_tables_assigned=request.POST.get('max_tables', 6)
+            )
+            
+            messages.success(request, f'Mesero "{waiter_staff.full_name}" creado exitosamente.')
+            return redirect('restaurants:admin_waiter_staff', tenant_slug=tenant_slug)
+            
+        except Exception as e:
+            messages.error(request, f'Error al crear el mesero: {e}')
+    
+    context = {
+        'restaurant': restaurant,
+        'page_title': 'Crear Mesero',
+        'is_admin_dashboard': True,
+        'status_choices': WaiterStaff.STATUS_CHOICES,
+    }
+    
+    return render(request, 'restaurants/admin/waiter_staff/form.html', context)
+
+
+@restaurant_admin_required
+def edit_waiter_staff(request, tenant_slug, staff_id):
+    """Editar mesero (nuevo sistema)"""
+    restaurant = request.restaurant
+    waiter_staff = get_object_or_404(WaiterStaff, id=staff_id, restaurant=restaurant)
+    
+    if request.method == 'POST':
+        try:
+            # Actualizar usuario
+            user = waiter_staff.user
+            user.first_name = request.POST.get('first_name')
+            user.last_name = request.POST.get('last_name')
+            user.email = request.POST.get('email')
+            
+            if request.POST.get('password'):
+                user.set_password(request.POST.get('password'))
+            
+            user.save()
+            
+            # Actualizar mesero
+            waiter_staff.employee_id = request.POST.get('employee_id', '')
+            waiter_staff.phone = request.POST.get('phone', '')
+            waiter_staff.status = request.POST.get('status')
+            waiter_staff.shift_start = request.POST.get('shift_start') or None
+            waiter_staff.shift_end = request.POST.get('shift_end') or None
+            waiter_staff.years_experience = request.POST.get('years_experience', 0)
+            waiter_staff.tips_percentage = request.POST.get('tips_percentage') or None
+            waiter_staff.max_tables_assigned = request.POST.get('max_tables', 6)
+            waiter_staff.save()
+            
+            messages.success(request, f'Mesero "{waiter_staff.full_name}" actualizado exitosamente.')
+            return redirect('restaurants:admin_waiter_staff', tenant_slug=tenant_slug)
+            
+        except Exception as e:
+            messages.error(request, f'Error al actualizar el mesero: {e}')
+    
+    context = {
+        'restaurant': restaurant,
+        'waiter_staff': waiter_staff,
+        'page_title': f'Editar {waiter_staff.full_name}',
+        'is_admin_dashboard': True,
+        'status_choices': WaiterStaff.STATUS_CHOICES,
+    }
+    
+    return render(request, 'restaurants/admin/waiter_staff/form.html', context)
+
+
+@restaurant_admin_required
+@require_POST
+def delete_waiter_staff(request, tenant_slug, staff_id):
+    """Eliminar mesero (nuevo sistema)"""
+    restaurant = request.restaurant
+    waiter_staff = get_object_or_404(WaiterStaff, id=staff_id, restaurant=restaurant)
+    
+    try:
+        staff_name = waiter_staff.full_name
+        user = waiter_staff.user
+        waiter_staff.delete()
+        user.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Mesero "{staff_name}" eliminado exitosamente.'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }) 

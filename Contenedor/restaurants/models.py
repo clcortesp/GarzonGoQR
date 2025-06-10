@@ -88,9 +88,9 @@ class Restaurant(models.Model):
     def __str__(self):
         return f"{self.name} - {self.tenant.slug}"
 
-class Waiter(models.Model):
+class RestaurantEmployee(models.Model):
     """
-    Modelo para los garzones/meseros del restaurante
+    Clase base abstracta para todos los empleados del restaurante
     """
     
     STATUS_CHOICES = [
@@ -101,10 +101,10 @@ class Waiter(models.Model):
     ]
     
     # Relaciones básicas
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='waiters')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='waiter_profile')
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     
-    # Información del garzón
+    # Información del empleado
     employee_id = models.CharField(max_length=20, blank=True, verbose_name="ID de empleado")
     phone = models.CharField(max_length=20, blank=True)
     
@@ -121,10 +121,9 @@ class Waiter(models.Model):
     shift_start = models.TimeField(null=True, blank=True, verbose_name="Inicio de turno")
     shift_end = models.TimeField(null=True, blank=True, verbose_name="Fin de turno")
     
-    # Estadísticas
-    total_orders_served = models.PositiveIntegerField(default=0)
-    average_response_time = models.PositiveIntegerField(default=0, help_text="En minutos")
-    rating_average = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
+    # Estadísticas básicas
+    total_tasks_completed = models.PositiveIntegerField(default=0)
+    average_completion_time = models.PositiveIntegerField(default=0, help_text="En minutos")
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -132,21 +131,12 @@ class Waiter(models.Model):
     last_active = models.DateTimeField(auto_now=True)
     
     class Meta:
-        verbose_name = 'Garzón'
-        verbose_name_plural = 'Garzones'
-        unique_together = ['restaurant', 'user']
-        ordering = ['user__first_name', 'user__last_name']
-    
-    def __str__(self):
-        return f"{self.user.get_full_name() or self.user.username} - {self.restaurant.name}"
+        abstract = True
     
     @property
     def full_name(self):
-        return self.user.get_full_name() or self.user.username
-    
-    @property
-    def assigned_tables_count(self):
-        return self.assigned_tables.count()
+        """Nombre completo del empleado"""
+        return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
     
     @property
     def is_working_hours(self):
@@ -164,6 +154,161 @@ class Waiter(models.Model):
         self.last_active = timezone.now()
         self.save(update_fields=['last_active'])
 
+class KitchenStaff(RestaurantEmployee):
+    """
+    Personal de cocina - se encarga de preparar los alimentos
+    """
+    
+    PRIORITY_CHOICES = [
+        ('low', 'Baja - Cocinero Jr.'),
+        ('medium', 'Media - Cocinero Sr.'),
+        ('high', 'Alta - Chef'),
+    ]
+    
+    # Especialidades (opcional)
+    specialties = models.JSONField(
+        default=list, 
+        blank=True,
+        help_text="Lista de especialidades: ['pasta', 'pizza', 'carnes']"
+    )
+    
+    # Configuración específica de cocina
+    can_modify_prep_time = models.BooleanField(default=False, verbose_name="Puede modificar tiempo de preparación")
+    priority_level = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium', verbose_name="Nivel de prioridad")
+    years_experience = models.PositiveIntegerField(default=0, verbose_name="Años de experiencia")
+    
+    # Estadísticas específicas de cocina
+    total_dishes_prepared = models.PositiveIntegerField(default=0)
+    average_prep_time = models.PositiveIntegerField(default=15, help_text="Tiempo promedio en minutos")
+    
+    class Meta:
+        verbose_name = 'Personal de Cocina'
+        verbose_name_plural = 'Personal de Cocina'
+        unique_together = ['restaurant', 'user']
+        ordering = ['-priority_level', 'user__first_name']
+    
+    def __str__(self):
+        return f"Cocina: {self.full_name} - {self.restaurant.name}"
+    
+    @property
+    def role_display(self):
+        """Mostrar rol según prioridad"""
+        roles = {1: 'Cocinero Jr.', 2: 'Cocinero Sr.', 3: 'Chef'}
+        return roles.get(self.priority_level, 'Cocinero')
+
+class BarStaff(RestaurantEmployee):
+    """
+    Personal de bar - se encarga de preparar bebidas
+    """
+    
+    # Tipos de bebidas que puede preparar
+    DRINK_TYPES = [
+        ('alcoholic', 'Bebidas alcohólicas'),
+        ('non_alcoholic', 'Bebidas sin alcohol'), 
+        ('coffee', 'Café y bebidas calientes'),
+        ('cocktails', 'Cócteles'),
+        ('all', 'Todas las bebidas'),
+    ]
+    
+    drink_specialties = models.JSONField(
+        default=list,
+        blank=True, 
+        help_text="Tipos de bebidas que puede preparar"
+    )
+    
+    # Certificaciones como JSONField
+    certifications = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista de certificaciones: ['bartender', 'sommelier']"
+    )
+    
+    # Certificaciones (opcional)
+    has_bartender_license = models.BooleanField(default=False, verbose_name="Licencia de barman")
+    can_serve_alcohol = models.BooleanField(default=True, verbose_name="Puede servir alcohol")
+    years_experience = models.PositiveIntegerField(default=0, verbose_name="Años de experiencia")
+    
+    # Estadísticas específicas de bar
+    total_drinks_prepared = models.PositiveIntegerField(default=0)
+    average_prep_time = models.PositiveIntegerField(default=5, help_text="Tiempo promedio en minutos")
+    
+    class Meta:
+        verbose_name = 'Personal de Bar'
+        verbose_name_plural = 'Personal de Bar'
+        unique_together = ['restaurant', 'user']
+        ordering = ['user__first_name']
+    
+    def __str__(self):
+        return f"Bar: {self.full_name} - {self.restaurant.name}"
+    
+    @property
+    def role_display(self):
+        """Mostrar rol"""
+        if self.has_bartender_license:
+            return 'Barman Certificado'
+        return 'Preparador de Bebidas'
+
+# Mantener el modelo Waiter existente pero heredando de RestaurantEmployee
+class WaiterStaff(RestaurantEmployee):
+    """
+    Personal de servicio - se encarga de servir pedidos y atender mesas
+    """
+    
+    # Estadísticas específicas de servicio
+    total_orders_served = models.PositiveIntegerField(default=0)
+    average_response_time = models.PositiveIntegerField(default=0, help_text="En minutos")
+    rating_average = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
+    years_experience = models.PositiveIntegerField(default=0, verbose_name="Años de experiencia")
+    tips_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name="Porcentaje de propinas")
+    
+    # Configuración específica de garzón
+    can_take_orders = models.BooleanField(default=True, verbose_name="Puede tomar pedidos manualmente")
+    max_tables_assigned = models.PositiveIntegerField(default=6, verbose_name="Máximo de mesas asignadas")
+    
+    class Meta:
+        verbose_name = 'Garzón'
+        verbose_name_plural = 'Garzones'
+        unique_together = ['restaurant', 'user']
+        ordering = ['user__first_name', 'user__last_name']
+    
+    def __str__(self):
+        return f"Garzón: {self.full_name} - {self.restaurant.name}"
+    
+    @property
+    def assigned_tables_count(self):
+        """Número de mesas asignadas"""
+        return self.assigned_tables.filter(is_active=True).count()
+    
+    @property
+    def role_display(self):
+        return 'Garzón de Servicio'
+
+
+# Mantener modelo Waiter original para compatibilidad
+class Waiter(RestaurantEmployee):
+    """
+    Modelo original de garzones - mantener para compatibilidad con sistema existente
+    """
+    
+    # Estadísticas específicas (igual que WaiterStaff)
+    total_orders_served = models.PositiveIntegerField(default=0)
+    average_response_time = models.PositiveIntegerField(default=0, help_text="En minutos")
+    rating_average = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
+    
+    class Meta:
+        verbose_name = 'Garzón'
+        verbose_name_plural = 'Garzones'
+        unique_together = ['restaurant', 'user']
+        ordering = ['user__first_name', 'user__last_name']
+    
+    def __str__(self):
+        return f"{self.user.get_full_name() or self.user.username} - {self.restaurant.name}"
+    
+    @property
+    def assigned_tables_count(self):
+        return self.assigned_tables.filter(is_active=True).count()
+
+
 class Table(models.Model):
     """
     Modelo para las mesas del restaurante
@@ -173,9 +318,9 @@ class Table(models.Model):
     name = models.CharField(max_length=100, blank=True, verbose_name="Nombre descriptivo")
     capacity = models.PositiveIntegerField(default=4, verbose_name="Capacidad (personas)")
     
-    # Asignación de garzón
+    # Asignación de garzón (mantener compatibilidad)
     assigned_waiter = models.ForeignKey(
-        Waiter, 
+        'Waiter', 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,
@@ -281,7 +426,7 @@ class WaiterNotification(models.Model):
     ]
     
     # Relaciones
-    waiter = models.ForeignKey(Waiter, on_delete=models.CASCADE, related_name='notifications')
+    waiter = models.ForeignKey('Waiter', on_delete=models.CASCADE, related_name='notifications')
     table = models.ForeignKey(Table, on_delete=models.CASCADE, related_name='notifications')
     order = models.ForeignKey('orders.Order', on_delete=models.CASCADE, null=True, blank=True)
     

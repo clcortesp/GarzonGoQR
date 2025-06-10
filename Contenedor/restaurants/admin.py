@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Tenant, Restaurant, Table, TableScanLog, Waiter, WaiterNotification
+from .models import (
+    Tenant, Restaurant, Table, TableScanLog, 
+    Waiter, WaiterNotification,
+    KitchenStaff, BarStaff, WaiterStaff
+)
 
 # Register your models here.
 
@@ -346,6 +350,183 @@ class TableScanLogAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('table', 'table__restaurant', 'order')
+
+# ============================================================================
+# 👨‍🍳 ADMINISTRACIÓN DE NUEVOS EMPLEADOS
+# ============================================================================
+
+class BaseEmployeeAdmin(admin.ModelAdmin):
+    """Clase base para administradores de empleados"""
+    
+    list_filter = [
+        'restaurant', 
+        'status', 
+        'is_available', 
+        'notification_email',
+        'created_at'
+    ]
+    search_fields = [
+        'user__first_name', 
+        'user__last_name', 
+        'user__username',
+        'employee_id',
+        'restaurant__name'
+    ]
+    raw_id_fields = ['user']
+    readonly_fields = ['created_at', 'updated_at', 'last_active']
+    
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('restaurant', 'user', 'employee_id', 'phone')
+        }),
+        ('Estado Laboral', {
+            'fields': ('status', 'is_available', 'shift_start', 'shift_end')
+        }),
+        ('Configuración de Notificaciones', {
+            'fields': ('notification_email', 'notification_push', 'notification_sound'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at', 'last_active'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def status_badge(self, obj):
+        """Mostrar estado con colores"""
+        colors = {
+            'active': 'green',
+            'inactive': 'gray',
+            'on_break': 'orange',
+            'busy': 'red'
+        }
+        color = colors.get(obj.status, 'gray')
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">● {}</span>',
+            color,
+            obj.get_status_display()
+        )
+    status_badge.short_description = 'Estado'
+    
+    def get_queryset(self, request):
+        """Optimizar queries"""
+        return super().get_queryset(request).select_related('user', 'restaurant')
+
+
+@admin.register(KitchenStaff)
+class KitchenStaffAdmin(BaseEmployeeAdmin):
+    list_display = [
+        'full_name', 
+        'restaurant', 
+        'role_display',
+        'status_badge', 
+        'total_dishes_prepared',
+        'average_prep_time',
+        'is_available',
+        'last_active'
+    ]
+    
+    # Agregar campos específicos de cocina a fieldsets
+    fieldsets = BaseEmployeeAdmin.fieldsets + (
+        ('Configuración de Cocina', {
+            'fields': ('specialties', 'priority_level', 'can_modify_prep_time'),
+            'classes': ('collapse',)
+        }),
+        ('Estadísticas de Cocina', {
+            'fields': ('total_dishes_prepared', 'average_prep_time'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    list_filter = BaseEmployeeAdmin.list_filter + ['priority_level', 'can_modify_prep_time']
+    
+    def role_display(self, obj):
+        """Mostrar rol con colores según prioridad"""
+        colors = {1: '#6c757d', 2: '#0d6efd', 3: '#dc3545'}  # Junior, Senior, Chef
+        color = colors.get(obj.priority_level, '#6c757d')
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            obj.role_display
+        )
+    role_display.short_description = 'Rol'
+
+
+@admin.register(BarStaff)
+class BarStaffAdmin(BaseEmployeeAdmin):
+    list_display = [
+        'full_name', 
+        'restaurant', 
+        'role_display',
+        'status_badge', 
+        'total_drinks_prepared',
+        'average_prep_time',
+        'can_serve_alcohol',
+        'is_available',
+        'last_active'
+    ]
+    
+    # Agregar campos específicos de bar a fieldsets
+    fieldsets = BaseEmployeeAdmin.fieldsets + (
+        ('Configuración de Bar', {
+            'fields': ('drink_specialties', 'has_bartender_license', 'can_serve_alcohol'),
+            'classes': ('collapse',)
+        }),
+        ('Estadísticas de Bar', {
+            'fields': ('total_drinks_prepared', 'average_prep_time'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    list_filter = BaseEmployeeAdmin.list_filter + ['has_bartender_license', 'can_serve_alcohol']
+    
+    def role_display(self, obj):
+        """Mostrar rol con indicador de certificación"""
+        if obj.has_bartender_license:
+            return format_html(
+                '<span style="color: #198754; font-weight: bold;">🍸 Barman Certificado</span>'
+            )
+        return format_html(
+            '<span style="color: #0d6efd;">🥤 Preparador de Bebidas</span>'
+        )
+    role_display.short_description = 'Rol'
+
+
+@admin.register(WaiterStaff)
+class WaiterStaffAdmin(BaseEmployeeAdmin):
+    list_display = [
+        'full_name', 
+        'restaurant', 
+        'role_display',
+        'status_badge', 
+        'total_orders_served',
+        'max_tables_assigned',
+        'can_take_orders',
+        'is_available',
+        'last_active'
+    ]
+    
+    # Agregar campos específicos de garzón a fieldsets
+    fieldsets = BaseEmployeeAdmin.fieldsets + (
+        ('Configuración de Servicio', {
+            'fields': ('can_take_orders', 'max_tables_assigned'),
+            'classes': ('collapse',)
+        }),
+        ('Estadísticas de Servicio', {
+            'fields': ('total_orders_served', 'average_response_time', 'rating_average'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    list_filter = BaseEmployeeAdmin.list_filter + ['can_take_orders']
+    
+    def role_display(self, obj):
+        """Mostrar rol de garzón"""
+        return format_html(
+            '<span style="color: #fd7e14; font-weight: bold;">🍽️ Garzón de Servicio</span>'
+        )
+    role_display.short_description = 'Rol'
+
 
 # Configuraciones adicionales del admin
 admin.site.site_header = 'Administración GarzonGoQR'

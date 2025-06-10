@@ -1,0 +1,486 @@
+{% extends 'restaurants/base.html' %}
+
+{% block title %}Dashboard Cocina - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .order-card {
+        border-left: 4px solid;
+        transition: all 0.3s ease;
+    }
+    
+    .order-pending {
+        border-left-color: #ffc107;
+    }
+    
+    .order-preparing {
+        border-left-color: #0d6efd;
+    }
+    
+    .order-ready {
+        border-left-color: #198754;
+    }
+    
+    .priority-high {
+        background-color: #fff5f5;
+        border-color: #dc3545 !important;
+    }
+    
+    .priority-medium {
+        background-color: #fff8e1;
+        border-color: #fd7e14 !important;
+    }
+    
+    .kitchen-stats {
+        background: linear-gradient(135deg, #ff6b6b, #ffa500);
+    }
+    
+    .prep-time-badge {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header del Dashboard -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-fire me-2 text-danger"></i>
+                Dashboard Cocina
+            </h1>
+            <p class="text-muted">{{ restaurant.name }} - Personal: {{ kitchen_staff.full_name }}</p>
+            {% if kitchen_staff.specialties %}
+                <div class="mt-2">
+                    <span class="text-muted">Especialidades:</span>
+                    {% for specialty in kitchen_staff.specialties.all %}
+                        <span class="badge bg-info me-1">{{ specialty.name }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        <div class="col-md-4">
+            <!-- Controles -->
+            <div class="row mb-2">
+                <div class="col-12 text-end">
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                        <button type="button" class="btn btn-outline-success" onclick="refreshDashboard()" title="Actualizar">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                        <button type="button" id="auto-refresh-toggle" class="btn btn-outline-info" onclick="toggleAutoRefresh()" title="Auto-actualización">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </div>
+                    <small id="last-update" class="text-muted">Última actualización: Ahora</small>
+                </div>
+            </div>
+            
+            <!-- Estados del Personal -->
+            <div class="row">
+                <div class="col-12 text-end">
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                        <button type="button" class="btn btn-outline-success" onclick="updateStatus('available')">
+                            <i class="fas fa-check me-1"></i>
+                            Disponible
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="updateStatus('busy')">
+                            <i class="fas fa-clock me-1"></i>
+                            Ocupado
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" onclick="updateStatus('break')">
+                            <i class="fas fa-pause me-1"></i>
+                            Descanso
+                        </button>
+                    </div>
+                    
+                    <a href="{% url 'restaurants:logout_simple' tenant_slug=restaurant.tenant.slug %}" 
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-sign-out-alt me-1"></i>
+                        Salir
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas Principales -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card kitchen-stats text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.pending_items }}</h4>
+                            <p class="mb-0">Items Pendientes</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clock fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.preparing_items }}</h4>
+                            <p class="mb-0">En Preparación</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-utensils fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card stat-card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.completed_today }}</h4>
+                            <p class="mb-0">Completados Hoy</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.avg_prep_time|floatformat:0 }}min</h4>
+                            <p class="mb-0">Tiempo Promedio</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-stopwatch fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros y Órdenes -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            Órdenes de Cocina
+                        </h5>
+                        
+                        <!-- Filtros -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-all" value="all" checked>
+                            <label class="btn btn-outline-secondary" for="filter-all">Todas</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-pending" value="pending">
+                            <label class="btn btn-outline-warning" for="filter-pending">Pendientes</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-preparing" value="preparing">
+                            <label class="btn btn-outline-info" for="filter-preparing">Preparando</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-ready" value="ready">
+                            <label class="btn btn-outline-success" for="filter-ready">Listos</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body" id="orders-container">
+                    {% if food_orders %}
+                        <div class="row" id="orders-list">
+                            {% for order in food_orders %}
+                                <div class="col-lg-6 mb-3 order-item" data-status="{{ order.status }}" data-order-id="{{ order.id }}">
+                                    <div class="card order-card order-{{ order.status }} 
+                                        {% if order.priority == 'high' %}priority-high
+                                        {% elif order.priority == 'medium' %}priority-medium{% endif %}">
+                                        
+                                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                            <div>
+                                                <strong>Mesa {{ order.table.number }}</strong>
+                                                {% if order.priority == 'high' %}
+                                                    <i class="fas fa-exclamation-triangle text-danger ms-2" title="Prioridad Alta"></i>
+                                                {% elif order.priority == 'medium' %}
+                                                    <i class="fas fa-exclamation text-warning ms-2" title="Prioridad Media"></i>
+                                                {% endif %}
+                                            </div>
+                                            <div class="text-end">
+                                                <small class="text-muted">{{ order.created_at|timesince }} atrás</small>
+                                                {% if order.estimated_prep_time %}
+                                                    <span class="badge prep-time-badge bg-secondary ms-2">
+                                                        {{ order.estimated_prep_time }}min
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="card-body">
+                                            <!-- Items de Comida -->
+                                            {% for item in order.food_items %}
+                                                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                                    <div>
+                                                        <strong>{{ item.menu_item.name }}</strong>
+                                                        <span class="badge bg-light text-dark ms-2">x{{ item.quantity }}</span>
+                                                        {% if item.special_instructions %}
+                                                            <br><small class="text-muted">{{ item.special_instructions }}</small>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div>
+                                                        <span class="badge 
+                                                            {% if item.status == 'pending' %}bg-warning
+                                                            {% elif item.status == 'preparing' %}bg-info
+                                                            {% elif item.status == 'ready' %}bg-success
+                                                            {% endif %}">
+                                                            {{ item.get_status_display }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                            
+                                            <!-- Botones de Acción -->
+                                            <div class="mt-3">
+                                                {% if order.status == 'pending' %}
+                                                    <button class="btn btn-info btn-sm me-2" onclick="startPreparation({{ order.id }})">
+                                                        <i class="fas fa-play me-1"></i>
+                                                        Comenzar Preparación
+                                                    </button>
+                                                {% elif order.status == 'preparing' %}
+                                                    <button class="btn btn-success btn-sm me-2" onclick="markReady({{ order.id }})">
+                                                        <i class="fas fa-check me-1"></i>
+                                                        Marcar Listo
+                                                    </button>
+                                                    <button class="btn btn-warning btn-sm" onclick="pausePreparation({{ order.id }})">
+                                                        <i class="fas fa-pause me-1"></i>
+                                                        Pausar
+                                                    </button>
+                                                {% elif order.status == 'ready' %}
+                                                    <span class="text-success">
+                                                        <i class="fas fa-check-circle me-1"></i>
+                                                        Listo para servir
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-utensils text-muted" style="font-size: 4rem;"></i>
+                            <h4 class="text-muted mt-3">No hay órdenes de cocina</h4>
+                            <p class="text-muted">Cuando haya pedidos de comida aparecerán aquí</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Confirmaciones -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Acción</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="modal-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-action">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let autoRefreshInterval;
+let autoRefreshEnabled = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar filtros
+    initializeFilters();
+    
+    // Auto-refresh cada 30 segundos
+    startAutoRefresh();
+});
+
+function initializeFilters() {
+    const filterRadios = document.querySelectorAll('input[name="statusFilter"]');
+    filterRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            filterOrders(this.value);
+        });
+    });
+}
+
+function filterOrders(status) {
+    const orders = document.querySelectorAll('.order-item');
+    orders.forEach(order => {
+        const orderStatus = order.dataset.status;
+        if (status === 'all' || orderStatus === status) {
+            order.style.display = 'block';
+        } else {
+            order.style.display = 'none';
+        }
+    });
+}
+
+function refreshDashboard() {
+    location.reload();
+}
+
+function startAutoRefresh() {
+    if (!autoRefreshEnabled) {
+        autoRefreshInterval = setInterval(refreshDashboard, 30000);
+        autoRefreshEnabled = true;
+        document.getElementById('auto-refresh-toggle').innerHTML = '<i class="fas fa-pause"></i>';
+    }
+}
+
+function toggleAutoRefresh() {
+    if (autoRefreshEnabled) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshEnabled = false;
+        document.getElementById('auto-refresh-toggle').innerHTML = '<i class="fas fa-play"></i>';
+    } else {
+        startAutoRefresh();
+    }
+}
+
+function startPreparation(orderId) {
+    showConfirmModal(
+        '¿Comenzar preparación de esta orden?',
+        function() {
+            updateOrderStatus(orderId, 'preparing');
+        }
+    );
+}
+
+function markReady(orderId) {
+    showConfirmModal(
+        '¿Marcar esta orden como lista?',
+        function() {
+            updateOrderStatus(orderId, 'ready');
+        }
+    );
+}
+
+function pausePreparation(orderId) {
+    showConfirmModal(
+        '¿Pausar preparación de esta orden?',
+        function() {
+            updateOrderStatus(orderId, 'pending');
+        }
+    );
+}
+
+function updateOrderStatus(orderId, status) {
+    fetch(`/{{ restaurant.tenant.slug }}/kitchen/update-order-status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Actualizar la interfaz
+            location.reload();
+        } else {
+            alert('Error al actualizar el estado: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error de conexión');
+    });
+}
+
+function updateStatus(status) {
+    fetch(`/{{ restaurant.tenant.slug }}/kitchen/update-staff-status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Feedback visual
+            console.log('Estado actualizado a:', status);
+        }
+    });
+}
+
+function showConfirmModal(message, onConfirm) {
+    document.getElementById('modal-message').textContent = message;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    
+    const confirmBtn = document.getElementById('confirm-action');
+    confirmBtn.onclick = function() {
+        modal.hide();
+        onConfirm();
+    };
+    
+    modal.show();
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Actualizar tiempo cada minuto
+setInterval(function() {
+    document.getElementById('last-update').textContent = 'Última actualización: Hace ' + 
+        Math.floor(Date.now() / 60000) + ' min';
+}, 60000);
+</script>
+{% endblock %} 

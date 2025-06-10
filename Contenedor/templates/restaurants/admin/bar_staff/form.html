@@ -1,0 +1,206 @@
+{% extends 'restaurants/admin/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-cup-straw me-2"></i>
+                    {{ page_title }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Información Personal -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="first_name" class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" 
+                                       value="{% if bar_staff %}{{ bar_staff.user.first_name }}{% endif %}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="last_name" class="form-label">Apellido <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" 
+                                       value="{% if bar_staff %}{{ bar_staff.user.last_name }}{% endif %}" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información de Usuario -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Usuario <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       value="{% if bar_staff %}{{ bar_staff.user.username }}{% endif %}" 
+                                       {% if bar_staff %}readonly{% else %}required{% endif %}>
+                                {% if bar_staff %}
+                                    <div class="form-text">El nombre de usuario no se puede cambiar</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       value="{% if bar_staff %}{{ bar_staff.user.email }}{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contraseña -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="password" class="form-label">
+                                    {% if bar_staff %}Nueva Contraseña{% else %}Contraseña <span class="text-danger">*</span>{% endif %}
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       {% if not bar_staff %}required{% endif %}>
+                                {% if bar_staff %}
+                                    <div class="form-text">Dejar en blanco para mantener la contraseña actual</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="employee_id" class="form-label">ID de Empleado</label>
+                                <input type="text" class="form-control" id="employee_id" name="employee_id" 
+                                       value="{% if bar_staff %}{{ bar_staff.employee_id }}{% endif %}"
+                                       placeholder="Ej: BAR001">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información de Contacto -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Teléfono</label>
+                                <input type="tel" class="form-control" id="phone" name="phone" 
+                                       value="{% if bar_staff %}{{ bar_staff.phone }}{% endif %}"
+                                       placeholder="+56 9 1234 5678">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="status" class="form-label">Estado <span class="text-danger">*</span></label>
+                                <select class="form-control" id="status" name="status" required>
+                                    {% for value, label in status_choices %}
+                                        <option value="{{ value }}" 
+                                            {% if bar_staff and bar_staff.status == value %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información Específica de Bar -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="years_experience" class="form-label">Años de Experiencia</label>
+                                <input type="number" class="form-control" id="years_experience" name="years_experience" 
+                                       value="{% if bar_staff %}{{ bar_staff.years_experience }}{% else %}0{% endif %}"
+                                       min="0" max="50">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check form-switch mt-4">
+                                    <input class="form-check-input" type="checkbox" id="can_serve_alcohol" 
+                                           name="can_serve_alcohol" value="1"
+                                           {% if bar_staff and bar_staff.can_serve_alcohol %}checked{% endif %}>
+                                    <label class="form-check-label" for="can_serve_alcohol">
+                                        <strong>Puede servir alcohol</strong>
+                                    </label>
+                                    <div class="form-text">Solo personal con licencia puede servir bebidas alcohólicas</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Certificaciones -->
+                    <div class="mb-3">
+                        <label class="form-label">Certificaciones de Bar</label>
+                        <div class="row">
+                            {% for certification in certifications %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               id="cert_{{ certification.id }}" name="certifications" value="{{ certification.id }}"
+                                               {% if bar_staff and certification in bar_staff.certifications.all %}checked{% endif %}>
+                                        <label class="form-check-label" for="cert_{{ certification.id }}">
+                                            {{ certification.name }}
+                                        </label>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="col-12">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        No hay certificaciones configuradas. Puedes crearlas desde el panel de administración Django.
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Horarios de Turno -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="shift_start" class="form-label">Inicio de Turno</label>
+                                <input type="time" class="form-control" id="shift_start" name="shift_start" 
+                                       value="{% if bar_staff and bar_staff.shift_start %}{{ bar_staff.shift_start|time:'H:i' }}{% endif %}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="shift_end" class="form-label">Fin de Turno</label>
+                                <input type="time" class="form-control" id="shift_end" name="shift_end" 
+                                       value="{% if bar_staff and bar_staff.shift_end %}{{ bar_staff.shift_end|time:'H:i' }}{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información Específica -->
+                    <div class="alert alert-primary">
+                        <h6><i class="bi bi-info-circle me-2"></i>Responsabilidades del Personal de Bar</h6>
+                        <ul class="mb-0">
+                            <li>Preparar bebidas alcohólicas y no alcohólicas</li>
+                            <li>Gestionar inventario de bebidas e ingredientes</li>
+                            <li>Verificar edad para servir alcohol (si tiene licencia)</li>
+                            <li>Actualizar estados de órdenes de bebidas</li>
+                            <li>Accederán al dashboard de bar en: <code>/bar/</code></li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Botones -->
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'restaurants:admin_bar_staff' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-secondary">
+                            <i class="bi bi-arrow-left me-2"></i>
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-info">
+                            <i class="bi bi-{% if bar_staff %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+                            {% if bar_staff %}Actualizar{% else %}Crear{% endif %} Personal de Bar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %} 

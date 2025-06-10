@@ -1,0 +1,313 @@
+{% extends 'restaurants/admin/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-fire me-2"></i>
+                    {{ page_title }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Información Personal -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="first_name" class="form-label">Nombre <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" 
+                                       value="{% if kitchen_staff %}{{ kitchen_staff.user.first_name }}{% endif %}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="last_name" class="form-label">Apellido <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" 
+                                       value="{% if kitchen_staff %}{{ kitchen_staff.user.last_name }}{% endif %}" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información de Usuario -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Usuario <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       value="{% if kitchen_staff %}{{ kitchen_staff.user.username }}{% endif %}" 
+                                       {% if kitchen_staff %}readonly{% else %}required{% endif %}>
+                                {% if kitchen_staff %}
+                                    <div class="form-text">El nombre de usuario no se puede cambiar</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       value="{% if kitchen_staff %}{{ kitchen_staff.user.email }}{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contraseña -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="password" class="form-label">
+                                    {% if kitchen_staff %}Nueva Contraseña{% else %}Contraseña <span class="text-danger">*</span>{% endif %}
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       {% if not kitchen_staff %}required{% endif %}>
+                                {% if kitchen_staff %}
+                                    <div class="form-text">Dejar en blanco para mantener la contraseña actual</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="employee_id" class="form-label">ID de Empleado</label>
+                                <input type="text" class="form-control" id="employee_id" name="employee_id" 
+                                       value="{% if kitchen_staff %}{{ kitchen_staff.employee_id }}{% endif %}"
+                                       placeholder="Ej: COC001">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información de Contacto -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Teléfono</label>
+                                <input type="tel" class="form-control" id="phone" name="phone" 
+                                       value="{% if kitchen_staff %}{{ kitchen_staff.phone }}{% endif %}"
+                                       placeholder="+56 9 1234 5678">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="status" class="form-label">Estado <span class="text-danger">*</span></label>
+                                <select class="form-control" id="status" name="status" required>
+                                    {% for value, label in status_choices %}
+                                        <option value="{{ value }}" 
+                                            {% if kitchen_staff and kitchen_staff.status == value %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información Específica de Cocina -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="priority_level" class="form-label">Nivel de Prioridad</label>
+                                <select class="form-control" id="priority_level" name="priority_level">
+                                    {% for value, label in priority_choices %}
+                                        <option value="{{ value }}" 
+                                            {% if kitchen_staff and kitchen_staff.priority_level == value %}selected
+                                            {% elif not kitchen_staff and value == 'medium' %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Los empleados de alta prioridad reciben las órdenes más complejas</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="years_experience" class="form-label">Años de Experiencia</label>
+                                <input type="number" class="form-control" id="years_experience" name="years_experience" 
+                                       value="{% if kitchen_staff %}{{ kitchen_staff.years_experience }}{% else %}0{% endif %}"
+                                       min="0" max="50">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Especialidades -->
+                    <div class="mb-3">
+                        <label class="form-label">Especialidades de Cocina</label>
+                        <div class="row">
+                            {% for specialty in specialties %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               id="specialty_{{ specialty.id }}" name="specialties" value="{{ specialty.id }}"
+                                               {% if kitchen_staff and specialty in kitchen_staff.specialties.all %}checked{% endif %}>
+                                        <label class="form-check-label" for="specialty_{{ specialty.id }}">
+                                            {{ specialty.name }}
+                                        </label>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="col-12">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        No hay especialidades configuradas. Puedes crearlas desde el panel de administración Django.
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Horarios de Turno -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="shift_start" class="form-label">Inicio de Turno</label>
+                                <input type="time" class="form-control" id="shift_start" name="shift_start" 
+                                       value="{% if kitchen_staff and kitchen_staff.shift_start %}{{ kitchen_staff.shift_start|time:'H:i' }}{% endif %}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="shift_end" class="form-label">Fin de Turno</label>
+                                <input type="time" class="form-control" id="shift_end" name="shift_end" 
+                                       value="{% if kitchen_staff and kitchen_staff.shift_end %}{{ kitchen_staff.shift_end|time:'H:i' }}{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Información Específica -->
+                    <div class="alert alert-warning">
+                        <h6><i class="bi bi-info-circle me-2"></i>Responsabilidades del Personal de Cocina</h6>
+                        <ul class="mb-0">
+                            <li>Preparar platillos y comidas del menú</li>
+                            <li>Controlar tiempos de cocción y calidad</li>
+                            <li>Gestionar ingredientes y stock de cocina</li>
+                            <li>Actualizar estados de órdenes de comida</li>
+                            <li>Solo verán items marcados como "comida" o "ambos"</li>
+                            <li>Accederán al dashboard de cocina en: <code>/cocina/</code></li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Botones -->
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'restaurants:admin_kitchen_staff' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-secondary">
+                            <i class="bi bi-arrow-left me-2"></i>
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-{% if kitchen_staff %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+                            {% if kitchen_staff %}Actualizar{% else %}Crear{% endif %} Personal de Cocina
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview de Dashboard de Cocina -->
+<div class="row mt-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-eye me-2"></i>
+                    Vista Previa del Dashboard de Cocina
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-3">
+                        <div class="p-3 bg-warning text-white rounded">
+                            <i class="bi bi-clock-history fa-2x"></i>
+                            <div class="mt-2">Pendientes</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-3 bg-info text-white rounded">
+                            <i class="bi bi-fire fa-2x"></i>
+                            <div class="mt-2">Preparando</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-3 bg-success text-white rounded">
+                            <i class="bi bi-check-circle fa-2x"></i>
+                            <div class="mt-2">Listos</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-3 bg-secondary text-white rounded">
+                            <i class="bi bi-graph-up fa-2x"></i>
+                            <div class="mt-2">Estadísticas</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-3">
+                    <small class="text-muted">El personal de cocina tendrá acceso a un dashboard especializado para gestionar órdenes de comida</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Validación del formulario
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const shiftStart = document.getElementById('shift_start');
+    const shiftEnd = document.getElementById('shift_end');
+    
+    // Validar horarios de turno
+    function validateShiftTimes() {
+        if (shiftStart.value && shiftEnd.value) {
+            const start = new Date('2000-01-01 ' + shiftStart.value);
+            const end = new Date('2000-01-01 ' + shiftEnd.value);
+            
+            if (start >= end) {
+                shiftEnd.setCustomValidity('El fin de turno debe ser posterior al inicio');
+            } else {
+                shiftEnd.setCustomValidity('');
+            }
+        }
+    }
+    
+    shiftStart.addEventListener('change', validateShiftTimes);
+    shiftEnd.addEventListener('change', validateShiftTimes);
+    
+    // Auto-generar employee_id si no existe
+    const employeeId = document.getElementById('employee_id');
+    const firstName = document.getElementById('first_name');
+    const lastName = document.getElementById('last_name');
+    
+    function generateEmployeeId() {
+        if (!employeeId.value && firstName.value && lastName.value) {
+            const prefix = 'COC';
+            const initials = (firstName.value.charAt(0) + lastName.value.charAt(0)).toUpperCase();
+            const number = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
+            employeeId.value = prefix + initials + number;
+        }
+    }
+    
+    firstName.addEventListener('blur', generateEmployeeId);
+    lastName.addEventListener('blur', generateEmployeeId);
+    
+    // Validación antes de enviar
+    form.addEventListener('submit', function(e) {
+        validateShiftTimes();
+        
+        // Verificar que tenga al menos una especialidad
+        const specialties = document.querySelectorAll('input[name="specialties"]:checked');
+        if (specialties.length === 0) {
+            const confirmed = confirm('No has seleccionado ninguna especialidad. ¿Estás seguro de continuar?');
+            if (!confirmed) {
+                e.preventDefault();
+            }
+        }
+    });
+});
+</script>
+{% endblock %} 

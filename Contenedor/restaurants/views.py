@@ -21,26 +21,53 @@ class TenantMixin:
     """Mixin para views que requieren contexto de tenant"""
     
     def get_context_data(self, **kwargs):
-        from .models import Waiter
+        from .models import Waiter, KitchenStaff, BarStaff, WaiterStaff
         
         context = super().get_context_data(**kwargs)
         
-        # Verificar si el usuario actual es un garzón
+        # Verificar el tipo de empleado si está autenticado
         user_is_waiter = False
+        user_is_kitchen = False
+        user_is_bar = False
+        
         if self.request.user.is_authenticated:
+            restaurant = get_current_restaurant(self.request)
+            
+            # Verificar garzón original
             try:
-                Waiter.objects.get(
-                    restaurant=get_current_restaurant(self.request),
-                    user=self.request.user
-                )
+                Waiter.objects.get(restaurant=restaurant, user=self.request.user)
                 user_is_waiter = True
             except Waiter.DoesNotExist:
+                pass
+            
+            # Verificar nuevo garzón
+            if not user_is_waiter:
+                try:
+                    WaiterStaff.objects.get(restaurant=restaurant, user=self.request.user)
+                    user_is_waiter = True
+                except WaiterStaff.DoesNotExist:
+                    pass
+            
+            # Verificar personal de cocina
+            try:
+                KitchenStaff.objects.get(restaurant=restaurant, user=self.request.user)
+                user_is_kitchen = True
+            except KitchenStaff.DoesNotExist:
+                pass
+            
+            # Verificar personal de bar
+            try:
+                BarStaff.objects.get(restaurant=restaurant, user=self.request.user)
+                user_is_bar = True
+            except BarStaff.DoesNotExist:
                 pass
         
         context.update({
             'tenant': get_current_tenant(self.request),
             'restaurant': get_current_restaurant(self.request),
             'user_is_waiter': user_is_waiter,
+            'user_is_kitchen': user_is_kitchen,
+            'user_is_bar': user_is_bar,
         })
         return context
 
@@ -50,32 +77,79 @@ class TenantLoginView(TenantMixin, LoginView):
     template_name = 'restaurants/auth/login.html'
     
     def get_success_url(self):
-        from .models import Waiter
+        from .models import Waiter, KitchenStaff, BarStaff, WaiterStaff
         
-        # Verificar si el usuario es un garzón
+        user = self.request.user
+        restaurant = self.request.restaurant
+        tenant_slug = self.request.tenant.slug
+        
+        # Verificar si el usuario es personal de cocina
         try:
-            waiter = Waiter.objects.get(
-                restaurant=self.request.restaurant, 
-                user=self.request.user
-            )
-            # Es un garzón, redirigir a su dashboard
-            return f'/{self.request.tenant.slug}/waiter/'
+            KitchenStaff.objects.get(restaurant=restaurant, user=user)
+            return f'/{tenant_slug}/kitchen/'
+        except KitchenStaff.DoesNotExist:
+            pass
+        
+        # Verificar si el usuario es personal de bar
+        try:
+            BarStaff.objects.get(restaurant=restaurant, user=user)
+            return f'/{tenant_slug}/bar/'
+        except BarStaff.DoesNotExist:
+            pass
+        
+        # Verificar si el usuario es un garzón (nuevo modelo)
+        try:
+            WaiterStaff.objects.get(restaurant=restaurant, user=user)
+            return f'/{tenant_slug}/waiter/'
+        except WaiterStaff.DoesNotExist:
+            pass
+        
+        # Verificar si el usuario es un garzón (modelo original)
+        try:
+            Waiter.objects.get(restaurant=restaurant, user=user)
+            return f'/{tenant_slug}/waiter/'
         except Waiter.DoesNotExist:
             pass
         
         # Verificar si es owner/admin del restaurante
-        if (self.request.user == self.request.restaurant.owner or
-            self.request.user.is_staff):
-            # Es admin, redirigir al panel de administración
-            return f'/{self.request.tenant.slug}/admin/'
+        if (user == restaurant.owner or user.is_staff or user.is_superuser):
+            return f'/{tenant_slug}/admin/'
         
-        # Usuario regular, redirigir al home
-        return f'/{self.request.tenant.slug}/'
+        # Usuario sin permisos específicos, redirigir al home
+        return f'/{tenant_slug}/'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtener el rol solicitado del parámetro de consulta
+        requested_role = self.request.GET.get('role', 'general')
+        
+        role_info = {
+            'admin': {'name': 'Administración', 'icon': '👑', 'description': 'Panel de administración'},
+            'kitchen': {'name': 'Cocina', 'icon': '👨‍🍳', 'description': 'Acceso a cocina'},
+            'bar': {'name': 'Bar', 'icon': '🍹', 'description': 'Acceso a bar'},
+            'waiter': {'name': 'Servicio', 'icon': '🫱', 'description': 'Acceso a servicio'},
+            'general': {'name': 'Empleado', 'icon': '🔑', 'description': 'Acceso general'},
+        }
+        
+        current_role = role_info.get(requested_role, role_info['general'])
+        
+        context.update({
+            'page_title': f'Iniciar Sesión - {current_role["name"]} - {self.request.restaurant.name}',
+            'role_info': current_role,
+            'requested_role': requested_role,
+        })
+        return context
+
+
+class StaffLoginPageView(TenantMixin, TemplateView):
+    """Vista para la página de selección de rol de empleados"""
+    template_name = 'restaurants/auth/staff_login.html'
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update({
-            'page_title': f'Iniciar Sesión - {self.request.restaurant.name}',
+            'page_title': f'Acceso de Empleados - {self.request.restaurant.name}',
         })
         return context
 

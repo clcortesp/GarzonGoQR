@@ -3,6 +3,8 @@ from . import views
 from . import waiter_views
 from . import admin_views
 from . import session_api_views
+from . import kitchen_views
+from . import bar_views
 from menu.views import MenuListView
 
 app_name = 'restaurants'
@@ -14,6 +16,7 @@ urlpatterns = [
     path('api/tenant-info/', views.tenant_info_api, name='tenant_info_api'),
     
     # Autenticación
+    path('staff/login/', views.StaffLoginPageView.as_view(), name='staff_login'),
     path('login/', views.TenantLoginView.as_view(), name='login'),
     path('logout/', views.TenantLogoutView.as_view(), name='logout'),
     path('logout-simple/', views.simple_logout_view, name='logout_simple'),
@@ -45,11 +48,29 @@ urlpatterns = [
     path('admin/menu/<uuid:item_id>/edit/', admin_views.edit_menu_item, name='admin_menu_edit'),
     path('admin/menu/<uuid:item_id>/delete/', admin_views.delete_menu_item, name='admin_menu_delete'),
     
-    # Gestión de Garzones
+    # Gestión de Garzones (Sistema Antiguo)
     path('admin/waiters/', admin_views.WaitersManagementView.as_view(), name='admin_waiters'),
     path('admin/waiters/create/', admin_views.create_waiter, name='admin_waiters_create'),
     path('admin/waiters/<int:waiter_id>/edit/', admin_views.edit_waiter, name='admin_waiters_edit'),
     path('admin/waiters/<int:waiter_id>/delete/', admin_views.delete_waiter, name='admin_waiters_delete'),
+    
+    # Gestión de Personal de Cocina
+    path('admin/kitchen-staff/', admin_views.KitchenStaffManagementView.as_view(), name='admin_kitchen_staff'),
+    path('admin/kitchen-staff/create/', admin_views.create_kitchen_staff, name='admin_kitchen_staff_create'),
+    path('admin/kitchen-staff/<int:staff_id>/edit/', admin_views.edit_kitchen_staff, name='admin_kitchen_staff_edit'),
+    path('admin/kitchen-staff/<int:staff_id>/delete/', admin_views.delete_kitchen_staff, name='admin_kitchen_staff_delete'),
+    
+    # Gestión de Personal de Bar
+    path('admin/bar-staff/', admin_views.BarStaffManagementView.as_view(), name='admin_bar_staff'),
+    path('admin/bar-staff/create/', admin_views.create_bar_staff, name='admin_bar_staff_create'),
+    path('admin/bar-staff/<int:staff_id>/edit/', admin_views.edit_bar_staff, name='admin_bar_staff_edit'),
+    path('admin/bar-staff/<int:staff_id>/delete/', admin_views.delete_bar_staff, name='admin_bar_staff_delete'),
+    
+    # Gestión de Meseros (Nuevo Sistema)
+    path('admin/waiter-staff/', admin_views.WaiterStaffManagementView.as_view(), name='admin_waiter_staff'),
+    path('admin/waiter-staff/create/', admin_views.create_waiter_staff, name='admin_waiter_staff_create'),
+    path('admin/waiter-staff/<int:staff_id>/edit/', admin_views.edit_waiter_staff, name='admin_waiter_staff_edit'),
+    path('admin/waiter-staff/<int:staff_id>/delete/', admin_views.delete_waiter_staff, name='admin_waiter_staff_delete'),
     
     # Gestión de Mesas
     path('admin/tables/', admin_views.TablesManagementView.as_view(), name='admin_tables'),
@@ -62,7 +83,21 @@ urlpatterns = [
     # Reportes y Analytics
     path('admin/reports/sales/', admin_views.SalesReportView.as_view(), name='admin_sales_report'),
     
-    # 🆕 SISTEMA DE GARZONES
+    # 🍳 SISTEMA DE COCINA
+    path('kitchen/', kitchen_views.kitchen_dashboard, name='kitchen_dashboard'),
+    path('kitchen/orders/', kitchen_views.kitchen_orders_list, name='kitchen_orders_list'),
+    path('kitchen/item/<int:item_id>/status/', kitchen_views.update_item_status, name='kitchen_update_item_status'),
+    path('kitchen/item/<int:item_id>/prep-time/', kitchen_views.update_prep_time, name='kitchen_update_prep_time'),
+    path('kitchen/status/update/', kitchen_views.update_kitchen_status, name='update_kitchen_status'),
+    
+    # 🍸 SISTEMA DE BAR
+    path('bar/', bar_views.bar_dashboard, name='bar_dashboard'),
+    path('bar/orders/', bar_views.bar_orders_list, name='bar_orders_list'),
+    path('bar/drink/<int:item_id>/status/', bar_views.update_drink_status, name='bar_update_drink_status'),
+    path('bar/status/update/', bar_views.update_bar_status, name='update_bar_status'),
+    path('bar/inventory/', bar_views.bar_inventory_status, name='bar_inventory_status'),
+    
+    # 🍽️ SISTEMA DE GARZONES
     path('waiter/', waiter_views.waiter_dashboard, name='waiter_dashboard'),
     path('waiter/notifications/', waiter_views.waiter_notifications, name='waiter_notifications'),
     path('waiter/notifications/<int:notification_id>/read/', waiter_views.mark_notification_read, name='mark_notification_read'),
