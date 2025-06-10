@@ -39,6 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',  # Para filtros como {{ value|floatformat }}
+    
+    # Channels para WebSocket
+    'channels',
 
     # Apps de la empresa
     'restaurants',
@@ -78,6 +81,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'GarzonGoQR.wsgi.application'
+ASGI_APPLICATION = 'GarzonGoQR.asgi.application'
+
+# Channels configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 
 # Database
