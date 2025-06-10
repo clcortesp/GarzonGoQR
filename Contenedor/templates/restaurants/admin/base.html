@@ -118,29 +118,82 @@
         }
         
         .stat-card {
+            display: block;
             text-align: center;
             padding: 1.5rem;
             border-radius: 10px;
-            color: white;
-            text-decoration: none;
-            transition: transform 0.3s ease;
+            color: white !important;
+            text-decoration: none !important;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
         }
         
         .stat-card:hover {
             transform: translateY(-5px);
-            color: white;
-            text-decoration: none;
+            color: white !important;
+            text-decoration: none !important;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .stat-card:hover::before {
+            left: 100%;
+        }
+        
+        .stat-card.bg-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3) !important;
+        }
+        
+        .stat-card.bg-success {
+            background: linear-gradient(135deg, #28a745, #1e7e34) !important;
+        }
+        
+        .stat-card.bg-info {
+            background: linear-gradient(135deg, #17a2b8, #117a8b) !important;
+        }
+        
+        .stat-card.bg-warning {
+            background: linear-gradient(135deg, #ffc107, #e0a800) !important;
+            color: #212529 !important;
+        }
+        
+        .stat-card.bg-warning:hover {
+            color: #212529 !important;
+        }
+        
+        .stat-card.bg-warning .stat-value,
+        .stat-card.bg-warning .stat-label {
+            color: #212529 !important;
         }
         
         .stat-value {
             font-size: 2rem;
             font-weight: bold;
             margin-bottom: 0.5rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
         }
         
         .stat-label {
             font-size: 0.9rem;
             opacity: 0.9;
+            font-weight: 500;
+        }
+        
+        .stat-label i {
+            margin-right: 0.5rem;
         }
         
         .alert {
@@ -171,6 +224,29 @@
             
             .content-wrapper {
                 padding: 1rem;
+            }
+            
+            .stat-card {
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+            
+            .stat-value {
+                font-size: 1.5rem;
+            }
+            
+            .stat-label {
+                font-size: 0.8rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .stat-card {
+                padding: 0.75rem;
+            }
+            
+            .stat-value {
+                font-size: 1.25rem;
             }
         }
     </style>
@@ -206,11 +282,36 @@
                 </a>
             </li>
             
+            <!-- Gestión de Personal -->
             <li class="nav-item">
                 <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" 
                    class="nav-link {% if 'admin_waiters' in request.resolver_match.url_name %}active{% endif %}">
                     <i class="bi bi-people"></i>
-                    Gestión de Garzones
+                    Garzones (Sistema Anterior)
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a href="{% url 'restaurants:admin_kitchen_staff' tenant_slug=restaurant.tenant.slug %}" 
+                   class="nav-link {% if 'admin_kitchen_staff' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-fire"></i>
+                    Personal de Cocina
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a href="{% url 'restaurants:admin_bar_staff' tenant_slug=restaurant.tenant.slug %}" 
+                   class="nav-link {% if 'admin_bar_staff' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-cup-straw"></i>
+                    Personal de Bar
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a href="{% url 'restaurants:admin_waiter_staff' tenant_slug=restaurant.tenant.slug %}" 
+                   class="nav-link {% if 'admin_waiter_staff' in request.resolver_match.url_name %}active{% endif %}">
+                    <i class="bi bi-person-check"></i>
+                    Meseros (Nuevo Sistema)
                 </a>
             </li>
             

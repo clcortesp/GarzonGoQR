@@ -5,43 +5,51 @@
 <!-- Stats Cards Row -->
 <div class="row mb-4">
     <div class="col-xl-3 col-md-6 mb-4">
-        <a href="#" class="stat-card bg-primary">
-            <div class="stat-value">{{ orders_today_count }}</div>
-            <div class="stat-label">
-                <i class="bi bi-receipt me-1"></i>
-                Pedidos Hoy
-            </div>
-        </a>
+        <div class="h-100">
+            <a href="#" class="stat-card bg-primary h-100 d-flex flex-column justify-content-center">
+                <div class="stat-value">{{ orders_today_count }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-receipt me-1"></i>
+                    Pedidos Hoy
+                </div>
+            </a>
+        </div>
     </div>
     
     <div class="col-xl-3 col-md-6 mb-4">
-        <div class="stat-card bg-success">
-            <div class="stat-value">${{ sales_today|floatformat:0 }}</div>
-            <div class="stat-label">
-                <i class="bi bi-currency-dollar me-1"></i>
-                Ventas Hoy
+        <div class="h-100">
+            <div class="stat-card bg-success h-100 d-flex flex-column justify-content-center">
+                <div class="stat-value">${{ sales_today|floatformat:0 }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-currency-dollar me-1"></i>
+                    Ventas Hoy
+                </div>
             </div>
         </div>
     </div>
     
     <div class="col-xl-3 col-md-6 mb-4">
-        <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" class="stat-card bg-info">
-            <div class="stat-value">{{ active_waiters_count }}</div>
-            <div class="stat-label">
-                <i class="bi bi-people me-1"></i>
-                Garzones Activos
+        <div class="h-100">
+            <div class="stat-card bg-info h-100 d-flex flex-column justify-content-center" data-bs-toggle="modal" data-bs-target="#staffBreakdownModal" style="cursor: pointer;">
+                <div class="stat-value">{{ total_active_staff }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-people me-1"></i>
+                    Personal Activo
+                </div>
             </div>
-        </a>
+        </div>
     </div>
     
     <div class="col-xl-3 col-md-6 mb-4">
-        <a href="{% url 'restaurants:admin_tables' tenant_slug=restaurant.tenant.slug %}" class="stat-card bg-warning">
-            <div class="stat-value">{{ total_tables }}</div>
-            <div class="stat-label">
-                <i class="bi bi-grid-3x3 me-1"></i>
-                Total Mesas
-            </div>
-        </a>
+        <div class="h-100">
+            <a href="{% url 'restaurants:admin_tables' tenant_slug=restaurant.tenant.slug %}" class="stat-card bg-warning h-100 d-flex flex-column justify-content-center">
+                <div class="stat-value">{{ total_tables }}</div>
+                <div class="stat-label">
+                    <i class="bi bi-grid-3x3 me-1"></i>
+                    Total Mesas
+                </div>
+            </a>
+        </div>
     </div>
 </div>
 
@@ -269,11 +277,28 @@
                     </div>
                     
                     <div class="col-md-3 mb-3">
-                        <a href="{% url 'restaurants:admin_waiters_create' tenant_slug=restaurant.tenant.slug %}" 
-                           class="btn btn-outline-success w-100 h-100 d-flex flex-column justify-content-center">
-                            <i class="bi bi-person-plus mb-2" style="font-size: 2rem;"></i>
-                            <span>Agregar Garzón</span>
-                        </a>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-success w-100 h-100 d-flex flex-column justify-content-center dropdown-toggle" 
+                                    type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-person-plus mb-2" style="font-size: 2rem;"></i>
+                                <span>Agregar Personal</span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{% url 'restaurants:admin_kitchen_staff_create' tenant_slug=restaurant.tenant.slug %}">
+                                    <i class="bi bi-fire me-2"></i>Personal de Cocina
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'restaurants:admin_bar_staff_create' tenant_slug=restaurant.tenant.slug %}">
+                                    <i class="bi bi-cup-straw me-2"></i>Personal de Bar
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'restaurants:admin_waiter_staff_create' tenant_slug=restaurant.tenant.slug %}">
+                                    <i class="bi bi-person-check me-2"></i>Meseros (Nuevo)
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'restaurants:admin_waiters_create' tenant_slug=restaurant.tenant.slug %}">
+                                    <i class="bi bi-people me-2"></i>Garzones (Anterior)
+                                </a></li>
+                            </ul>
+                        </div>
                     </div>
                     
                     <div class="col-md-3 mb-3">
@@ -292,6 +317,108 @@
                         </a>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Desglose de Personal -->
+<div class="modal fade" id="staffBreakdownModal" tabindex="-1" aria-labelledby="staffBreakdownModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="staffBreakdownModalLabel">
+                    <i class="bi bi-people me-2"></i>
+                    Desglose de Personal Activo
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-people text-primary" style="font-size: 2rem;"></i>
+                                <h4 class="mt-2">{{ staff_breakdown.waiters }}</h4>
+                                <p class="text-muted mb-2">Garzones (Sistema Anterior)</p>
+                                <a href="{% url 'restaurants:admin_waiters' tenant_slug=restaurant.tenant.slug %}" 
+                                   class="btn btn-sm btn-primary">
+                                    Gestionar
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-fire text-danger" style="font-size: 2rem;"></i>
+                                <h4 class="mt-2">{{ staff_breakdown.kitchen_staff }}</h4>
+                                <p class="text-muted mb-2">Personal de Cocina</p>
+                                <a href="{% url 'restaurants:admin_kitchen_staff' tenant_slug=restaurant.tenant.slug %}" 
+                                   class="btn btn-sm btn-danger">
+                                    Gestionar
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-cup-straw text-info" style="font-size: 2rem;"></i>
+                                <h4 class="mt-2">{{ staff_breakdown.bar_staff }}</h4>
+                                <p class="text-muted mb-2">Personal de Bar</p>
+                                <a href="{% url 'restaurants:admin_bar_staff' tenant_slug=restaurant.tenant.slug %}" 
+                                   class="btn btn-sm btn-info">
+                                    Gestionar
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-person-check text-success" style="font-size: 2rem;"></i>
+                                <h4 class="mt-2">{{ staff_breakdown.waiter_staff }}</h4>
+                                <p class="text-muted mb-2">Meseros (Nuevo Sistema)</p>
+                                <a href="{% url 'restaurants:admin_waiter_staff' tenant_slug=restaurant.tenant.slug %}" 
+                                   class="btn btn-sm btn-success">
+                                    Gestionar
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-3">Acciones Rápidas para Personal</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="{% url 'restaurants:admin_kitchen_staff_create' tenant_slug=restaurant.tenant.slug %}" 
+                               class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-plus-circle me-1"></i>
+                                Agregar Personal de Cocina
+                            </a>
+                            <a href="{% url 'restaurants:admin_bar_staff_create' tenant_slug=restaurant.tenant.slug %}" 
+                               class="btn btn-outline-info btn-sm">
+                                <i class="bi bi-plus-circle me-1"></i>
+                                Agregar Personal de Bar
+                            </a>
+                            <a href="{% url 'restaurants:admin_waiter_staff_create' tenant_slug=restaurant.tenant.slug %}" 
+                               class="btn btn-outline-success btn-sm">
+                                <i class="bi bi-plus-circle me-1"></i>
+                                Agregar Mesero
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>

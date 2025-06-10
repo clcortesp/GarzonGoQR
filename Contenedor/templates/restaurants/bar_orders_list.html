@@ -1,0 +1,781 @@
+{% extends 'restaurants/base.html' %}
+
+{% block title %}Órdenes del Bar - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .drink-card {
+        border-left: 4px solid;
+        transition: all 0.3s ease;
+    }
+    
+    .drink-pending { border-left-color: #ffc107; }
+    .drink-preparing { border-left-color: #0d6efd; }
+    .drink-ready { border-left-color: #198754; }
+    
+    .alcoholic-indicator {
+        background: linear-gradient(45deg, #ff6b6b, #ffa500);
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+    }
+    
+    .cocktail-complexity {
+        display: flex;
+        gap: 2px;
+    }
+    
+    .complexity-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #dee2e6;
+    }
+    
+    .complexity-dot.active {
+        background: #fd7e14;
+    }
+    
+    .prep-station {
+        background: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .temperature-indicator {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 20px;
+        font-size: 0.7rem;
+        color: white;
+        margin-left: 0.5rem;
+    }
+    
+    .temp-cold { background: #17a2b8; }
+    .temp-room { background: #6c757d; }
+    .temp-hot { background: #dc3545; }
+    
+    .ingredient-tag {
+        display: inline-block;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 0.125rem 0.375rem;
+        font-size: 0.75rem;
+        margin: 0.125rem;
+    }
+    
+    .garnish-note {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 0.25rem;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    
+    .age-verification {
+        background: #fff5f5;
+        border: 2px solid #dc3545;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .timer-display {
+        font-family: 'Courier New', monospace;
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #495057;
+    }
+    
+    .timer-warning { color: #fd7e14; }
+    .timer-danger { color: #dc3545; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-cocktail me-2 text-primary"></i>
+                Órdenes del Bar
+            </h1>
+            <p class="text-muted">{{ restaurant.name }} - {{ orders.count }} órdenes activas</p>
+            {% if bar_staff.can_serve_alcohol %}
+                <span class="badge bg-success">
+                    <i class="fas fa-wine-glass me-1"></i>
+                    Licencia de Alcohol Activa
+                </span>
+            {% else %}
+                <span class="badge bg-warning text-dark">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Sin Licencia de Alcohol
+                </span>
+            {% endif %}
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-group me-2">
+                <button class="btn btn-outline-success" onclick="refreshOrders()">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <button class="btn btn-outline-warning" onclick="checkInventory()">
+                    <i class="fas fa-boxes"></i>
+                </button>
+                <button class="btn btn-outline-info" onclick="toggleSound()">
+                    <i class="fas fa-volume-up" id="sound-icon"></i>
+                </button>
+            </div>
+            <a href="{% url 'restaurants:bar_dashboard' tenant_slug=restaurant.tenant.slug %}" 
+               class="btn btn-primary">
+                <i class="fas fa-tachometer-alt me-1"></i>
+                Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Estadísticas Rápidas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ stats.pending_drinks }}</h4>
+                    <p class="mb-0">Pendientes</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ stats.preparing_drinks }}</h4>
+                    <p class="mb-0">Preparando</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ stats.ready_drinks }}</h4>
+                    <p class="mb-0">Listas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ stats.alcoholic_orders }}</h4>
+                    <p class="mb-0">Con Alcohol</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-all" value="all" checked>
+                                <label class="btn btn-outline-secondary" for="filter-all">Todas</label>
+                                
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-pending" value="pending">
+                                <label class="btn btn-outline-warning" for="filter-pending">Pendientes</label>
+                                
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-preparing" value="preparing">
+                                <label class="btn btn-outline-info" for="filter-preparing">Preparando</label>
+                                
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-ready" value="ready">
+                                <label class="btn btn-outline-success" for="filter-ready">Listas</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="btn-group">
+                                <input type="checkbox" class="btn-check" id="filter-alcoholic">
+                                <label class="btn btn-outline-warning" for="filter-alcoholic">
+                                    <i class="fas fa-wine-glass me-1"></i>
+                                    Solo Alcohólicas
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <select class="form-select" id="sort-order">
+                                <option value="time">Más antiguas primero</option>
+                                <option value="complexity">Por complejidad</option>
+                                <option value="table">Por mesa</option>
+                                <option value="type">Por tipo de bebida</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Órdenes -->
+    <div class="row" id="orders-container">
+        {% for order in orders %}
+            <div class="col-lg-6 mb-4 order-item" 
+                 data-status="{{ order.status }}" 
+                 data-alcoholic="{{ order.has_alcoholic_drinks|yesno:'true,false' }}"
+                 data-table="{{ order.table.number }}"
+                 data-complexity="{{ order.avg_complexity|default:'1' }}"
+                 data-time="{{ order.created_at|date:'U' }}">
+                <div class="card drink-card drink-{{ order.status }} h-100">
+                    
+                    <!-- Header de la Orden -->
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Mesa {{ order.table.number }}</strong>
+                            <span class="badge bg-light text-dark ms-2">{{ order.drink_items.count }} bebidas</span>
+                            {% if order.has_alcoholic_drinks %}
+                                <span class="alcoholic-indicator">
+                                    <i class="fas fa-wine-glass me-1"></i>
+                                    Alcohol
+                                </span>
+                            {% endif %}
+                        </div>
+                        <div class="text-end">
+                            <div class="timer-display" id="timer-{{ order.id }}">
+                                {{ order.elapsed_time }}
+                            </div>
+                            <small class="text-muted d-block">{{ order.created_at|timesince }} atrás</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Verificación de Edad (si es necesaria) -->
+                    {% if order.has_alcoholic_drinks and order.requires_age_verification %}
+                        <div class="age-verification">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-id-card text-danger me-2"></i>
+                                <div>
+                                    <strong class="text-danger">Verificación de Edad Requerida</strong>
+                                    <br>
+                                    <small>Cliente debe mostrar identificación válida</small>
+                                </div>
+                                {% if not bar_staff.can_serve_alcohol %}
+                                    <div class="ms-auto">
+                                        <span class="badge bg-danger">Sin Licencia</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Cuerpo de la Orden -->
+                    <div class="card-body">
+                        <!-- Items de Bebidas -->
+                        {% for item in order.drink_items %}
+                            <div class="prep-station mb-3">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">
+                                            {{ item.menu_item.name }}
+                                            <span class="badge bg-light text-dark ms-2">x{{ item.quantity }}</span>
+                                            {% if item.menu_item.is_alcoholic %}
+                                                <i class="fas fa-wine-glass text-warning ms-1"></i>
+                                            {% endif %}
+                                            
+                                            <!-- Indicador de Temperatura -->
+                                            {% if item.menu_item.serving_temperature %}
+                                                <span class="temperature-indicator 
+                                                    {% if item.menu_item.serving_temperature == 'cold' %}temp-cold
+                                                    {% elif item.menu_item.serving_temperature == 'hot' %}temp-hot
+                                                    {% else %}temp-room{% endif %}">
+                                                    {% if item.menu_item.serving_temperature == 'cold' %}❄
+                                                    {% elif item.menu_item.serving_temperature == 'hot' %}🔥
+                                                    {% else %}🌡{% endif %}
+                                                </span>
+                                            {% endif %}
+                                        </h6>
+                                        
+                                        <!-- Complejidad de Preparación -->
+                                        {% if item.menu_item.complexity %}
+                                            <div class="cocktail-complexity mb-2">
+                                                <small class="text-muted me-2">Complejidad:</small>
+                                                {% for i in "12345"|make_list %}
+                                                    <div class="complexity-dot {% if forloop.counter <= item.menu_item.complexity %}active{% endif %}"></div>
+                                                {% endfor %}
+                                                <small class="text-muted ms-2">
+                                                    {% if item.menu_item.complexity <= 2 %}Fácil
+                                                    {% elif item.menu_item.complexity <= 4 %}Medio
+                                                    {% else %}Complejo{% endif %}
+                                                </small>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <!-- Ingredientes Principales -->
+                                        {% if item.menu_item.main_ingredients %}
+                                            <div class="mb-2">
+                                                <small class="text-muted">Ingredientes:</small>
+                                                <div>
+                                                    {% for ingredient in item.menu_item.main_ingredients.all %}
+                                                        <span class="ingredient-tag">{{ ingredient.name }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <!-- Método de Preparación -->
+                                        {% if item.menu_item.preparation_method %}
+                                            <div class="mb-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-tools me-1"></i>
+                                                    {{ item.menu_item.preparation_method }}
+                                                </small>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <!-- Tiempo Estimado -->
+                                        {% if item.menu_item.prep_time_minutes %}
+                                            <div class="mb-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    {{ item.menu_item.prep_time_minutes }} min
+                                                </small>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <!-- Instrucciones Especiales -->
+                                        {% if item.special_instructions %}
+                                            <div class="garnish-note">
+                                                <small>
+                                                    <i class="fas fa-sticky-note me-1"></i>
+                                                    <strong>Especial:</strong> {{ item.special_instructions }}
+                                                </small>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        <!-- Guarnición -->
+                                        {% if item.menu_item.default_garnish %}
+                                            <div class="mt-2">
+                                                <small class="text-success">
+                                                    <i class="fas fa-leaf me-1"></i>
+                                                    Guarnición: {{ item.menu_item.default_garnish }}
+                                                </small>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="ms-3 text-end">
+                                        <span class="badge 
+                                            {% if item.status == 'pending' %}bg-warning
+                                            {% elif item.status == 'preparing' %}bg-info
+                                            {% elif item.status == 'ready' %}bg-success
+                                            {% endif %} mb-2">
+                                            {{ item.get_status_display }}
+                                        </span>
+                                        
+                                        {% if item.estimated_ready_time %}
+                                            <div>
+                                                <small class="text-muted">
+                                                    Listo: {{ item.estimated_ready_time|time:"H:i" }}
+                                                </small>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Footer con Botones de Acción -->
+                    <div class="card-footer">
+                        <div class="d-flex gap-2">
+                            {% if order.status == 'pending' %}
+                                {% if order.has_alcoholic_drinks and not bar_staff.can_serve_alcohol %}
+                                    <div class="text-center w-100">
+                                        <span class="text-danger">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                            Requiere licencia de alcohol
+                                        </span>
+                                        <br>
+                                        <small class="text-muted">Contacta a un supervisor</small>
+                                    </div>
+                                {% else %}
+                                    <button class="btn btn-info flex-fill" onclick="startPreparation({{ order.id }})">
+                                        <i class="fas fa-play me-1"></i>
+                                        Comenzar Preparación
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="checkIngredients({{ order.id }})">
+                                        <i class="fas fa-list-check"></i>
+                                    </button>
+                                {% endif %}
+                            {% elif order.status == 'preparing' %}
+                                <button class="btn btn-success flex-fill" onclick="markReady({{ order.id }})">
+                                    <i class="fas fa-check me-1"></i>
+                                    Marcar Listas
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="pausePreparation({{ order.id }})">
+                                    <i class="fas fa-pause"></i>
+                                </button>
+                                <button class="btn btn-outline-info" onclick="addNote({{ order.id }})">
+                                    <i class="fas fa-sticky-note"></i>
+                                </button>
+                            {% elif order.status == 'ready' %}
+                                <div class="text-center w-100">
+                                    <span class="text-success">
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        Bebidas listas para servir
+                                    </span>
+                                    <br>
+                                    <small class="text-muted">
+                                        Completado hace {{ order.completed_at|timesince }}
+                                    </small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="fas fa-cocktail text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3">No hay órdenes del bar</h4>
+                    <p class="text-muted">Las nuevas órdenes de bebidas aparecerán aquí automáticamente</p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal para Verificar Ingredientes -->
+<div class="modal fade" id="ingredientsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Verificar Ingredientes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="ingredients-list">
+                <!-- Contenido dinámico -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-warning" id="report-missing">Reportar Faltantes</button>
+                <button type="button" class="btn btn-success" id="confirm-ingredients">Todo Disponible</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Nota -->
+<div class="modal fade" id="noteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nota del Bartender</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nota:</label>
+                    <textarea class="form-control" id="bar-note" rows="4" 
+                              placeholder="Ej: Cambio de guarnición, sustitución de ingrediente, etc."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tipo:</label>
+                    <select class="form-select" id="note-type">
+                        <option value="preparation">Preparación</option>
+                        <option value="substitution">Sustitución</option>
+                        <option value="garnish">Guarnición</option>
+                        <option value="customer_request">Pedido especial</option>
+                        <option value="other">Otro</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-note">Agregar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let soundEnabled = true;
+let currentOrderId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeFilters();
+    startTimers();
+    
+    // Auto-refresh cada 15 segundos
+    setInterval(refreshOrders, 15000);
+    
+    // Verificar nuevas órdenes
+    checkForNewOrders();
+});
+
+function initializeFilters() {
+    const statusFilters = document.querySelectorAll('input[name="statusFilter"]');
+    const alcoholicFilter = document.getElementById('filter-alcoholic');
+    const sortOrder = document.getElementById('sort-order');
+    
+    statusFilters.forEach(filter => {
+        filter.addEventListener('change', applyFilters);
+    });
+    
+    alcoholicFilter.addEventListener('change', applyFilters);
+    sortOrder.addEventListener('change', applyFilters);
+}
+
+function applyFilters() {
+    const statusFilter = document.querySelector('input[name="statusFilter"]:checked').value;
+    const alcoholicOnly = document.getElementById('filter-alcoholic').checked;
+    const sortOrder = document.getElementById('sort-order').value;
+    
+    const orders = Array.from(document.querySelectorAll('.order-item'));
+    
+    // Filtrar
+    orders.forEach(order => {
+        const status = order.dataset.status;
+        const isAlcoholic = order.dataset.alcoholic === 'true';
+        
+        let show = true;
+        
+        if (statusFilter !== 'all' && status !== statusFilter) show = false;
+        if (alcoholicOnly && !isAlcoholic) show = false;
+        
+        order.style.display = show ? 'block' : 'none';
+    });
+    
+    // Ordenar elementos visibles
+    const visibleOrders = orders.filter(order => order.style.display !== 'none');
+    
+    visibleOrders.sort((a, b) => {
+        switch (sortOrder) {
+            case 'complexity':
+                return parseInt(b.dataset.complexity) - parseInt(a.dataset.complexity);
+            case 'table':
+                return parseInt(a.dataset.table) - parseInt(b.dataset.table);
+            case 'type':
+                // Primero alcohólicas
+                const aAlc = a.dataset.alcoholic === 'true';
+                const bAlc = b.dataset.alcoholic === 'true';
+                if (aAlc !== bAlc) return bAlc ? 1 : -1;
+                return 0;
+            case 'time':
+            default:
+                return parseInt(a.dataset.time) - parseInt(b.dataset.time);
+        }
+    });
+    
+    // Reordenar en el DOM
+    const container = document.getElementById('orders-container');
+    visibleOrders.forEach(order => {
+        container.appendChild(order);
+    });
+}
+
+function startTimers() {
+    const timers = document.querySelectorAll('.timer-display');
+    
+    setInterval(() => {
+        timers.forEach(timer => {
+            const orderId = timer.id.replace('timer-', '');
+            updateTimer(timer, orderId);
+        });
+    }, 1000);
+}
+
+function updateTimer(element, orderId) {
+    const currentTime = element.textContent;
+    const minutes = parseInt(currentTime.split(':')[0]);
+    
+    element.classList.remove('timer-warning', 'timer-danger');
+    
+    if (minutes > 15) {
+        element.classList.add('timer-danger');
+    } else if (minutes > 10) {
+        element.classList.add('timer-warning');
+    }
+}
+
+function refreshOrders() {
+    location.reload();
+}
+
+function checkInventory() {
+    window.location.href = `/${window.location.pathname.split('/')[1]}/bar/inventory/`;
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const icon = document.getElementById('sound-icon');
+    icon.className = soundEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+    
+    localStorage.setItem('bar-sound', soundEnabled);
+}
+
+function playNotificationSound() {
+    if (soundEnabled) {
+        const audio = new Audio('/static/sounds/bar-notification.mp3');
+        audio.play().catch(e => console.log('Error reproduciendo sonido:', e));
+    }
+}
+
+function checkForNewOrders() {
+    setInterval(() => {
+        fetch(`/{{ restaurant.tenant.slug }}/bar/check-new-orders/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.new_orders) {
+                playNotificationSound();
+            }
+        });
+    }, 10000);
+}
+
+function startPreparation(orderId) {
+    updateOrderStatus(orderId, 'preparing');
+}
+
+function markReady(orderId) {
+    updateOrderStatus(orderId, 'ready');
+}
+
+function pausePreparation(orderId) {
+    updateOrderStatus(orderId, 'pending');
+}
+
+function checkIngredients(orderId) {
+    currentOrderId = orderId;
+    
+    fetch(`/{{ restaurant.tenant.slug }}/bar/check-ingredients/${orderId}/`)
+    .then(response => response.json())
+    .then(data => {
+        const modalBody = document.getElementById('ingredients-list');
+        modalBody.innerHTML = data.html;
+        
+        const modal = new bootstrap.Modal(document.getElementById('ingredientsModal'));
+        modal.show();
+    });
+}
+
+function addNote(orderId) {
+    currentOrderId = orderId;
+    const modal = new bootstrap.Modal(document.getElementById('noteModal'));
+    modal.show();
+}
+
+function updateOrderStatus(orderId, status) {
+    fetch(`/{{ restaurant.tenant.slug }}/bar/update-order-status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error al actualizar: ' + data.error);
+        }
+    });
+}
+
+// Event listeners para modales
+document.getElementById('confirm-ingredients').addEventListener('click', function() {
+    bootstrap.Modal.getInstance(document.getElementById('ingredientsModal')).hide();
+    startPreparation(currentOrderId);
+});
+
+document.getElementById('report-missing').addEventListener('click', function() {
+    fetch(`/{{ restaurant.tenant.slug }}/bar/report-missing-ingredients/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: currentOrderId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Reporte enviado al administrador');
+            bootstrap.Modal.getInstance(document.getElementById('ingredientsModal')).hide();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+
+document.getElementById('confirm-note').addEventListener('click', function() {
+    const note = document.getElementById('bar-note').value;
+    const noteType = document.getElementById('note-type').value;
+    
+    if (!note.trim()) {
+        alert('Ingresa una nota');
+        return;
+    }
+    
+    fetch(`/{{ restaurant.tenant.slug }}/bar/add-note/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: currentOrderId,
+            note: note,
+            note_type: noteType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Cargar configuración de sonido
+document.addEventListener('DOMContentLoaded', function() {
+    const savedSound = localStorage.getItem('bar-sound');
+    if (savedSound !== null) {
+        soundEnabled = savedSound === 'true';
+        const icon = document.getElementById('sound-icon');
+        icon.className = soundEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+    }
+});
+</script>
+{% endblock %} 

@@ -1,0 +1,175 @@
+{% extends 'restaurants/admin/base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="h4 mb-0">Gestión de Personal de Meseros</h2>
+        <p class="text-muted">{{ waiter_staff.count }} mesero{{ waiter_staff.count|pluralize:"s" }}</p>
+    </div>
+    <a href="{% url 'restaurants:admin_waiter_staff_create' tenant_slug=restaurant.tenant.slug %}" 
+       class="btn btn-primary">
+        <i class="bi bi-plus-circle me-2"></i>
+        Agregar Mesero
+    </a>
+</div>
+
+{% if waiter_staff %}
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Mesero</th>
+                            <th>Información</th>
+                            <th>Experiencia</th>
+                            <th>Estado</th>
+                            <th>Propinas</th>
+                            <th>Turno</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for staff in waiter_staff %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar bg-primary text-white rounded-circle me-3" 
+                                             style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                            <i class="bi bi-person-badge"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold">{{ staff.full_name }}</div>
+                                            <small class="text-muted">{{ staff.user.email }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if staff.employee_id %}
+                                        <div class="text-sm">
+                                            <strong>ID:</strong> {{ staff.employee_id }}
+                                        </div>
+                                    {% endif %}
+                                    {% if staff.phone %}
+                                        <div class="text-sm text-muted">
+                                            <i class="bi bi-phone me-1"></i>{{ staff.phone }}
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="text-center">
+                                        <div class="fw-bold text-primary">{{ staff.years_experience }}</div>
+                                        <small class="text-muted">año{{ staff.years_experience|pluralize:"s" }}</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if staff.status == 'active' %}
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle me-1"></i>
+                                            {{ staff.get_status_display }}
+                                        </span>
+                                    {% elif staff.status == 'busy' %}
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-clock me-1"></i>
+                                            {{ staff.get_status_display }}
+                                        </span>
+                                    {% elif staff.status == 'break' %}
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-pause-circle me-1"></i>
+                                            {{ staff.get_status_display }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-x-circle me-1"></i>
+                                            {{ staff.get_status_display }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="text-center">
+                                        {% if staff.tips_percentage %}
+                                            <div class="fw-bold text-success">{{ staff.tips_percentage }}%</div>
+                                            <small class="text-muted">comisión</small>
+                                        {% else %}
+                                            <span class="text-muted">No definido</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if staff.shift_start and staff.shift_end %}
+                                        <div class="text-sm">
+                                            <i class="bi bi-clock me-1"></i>
+                                            {{ staff.shift_start }} - {{ staff.shift_end }}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">Sin turno definido</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'restaurants:admin_waiter_staff_edit' tenant_slug=restaurant.tenant.slug staff_id=staff.id %}" 
+                                           class="btn btn-sm btn-outline-primary" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-danger" 
+                                                onclick="deleteItem('{% url 'restaurants:admin_waiter_staff_delete' tenant_slug=restaurant.tenant.slug staff_id=staff.id %}', '{{ staff.full_name }}')"
+                                                title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+{% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-person-badge text-muted" style="font-size: 4rem;"></i>
+            <h4 class="mt-3 text-muted">No hay meseros</h4>
+            <p class="text-muted mb-4">Agrega tu primer mesero para comenzar a gestionar el servicio de atención al cliente.</p>
+            <a href="{% url 'restaurants:admin_waiter_staff_create' tenant_slug=restaurant.tenant.slug %}" 
+               class="btn btn-primary">
+                <i class="bi bi-plus-circle me-2"></i>
+                Agregar Mesero
+            </a>
+        </div>
+    </div>
+    
+    <!-- Información sobre Meseros -->
+    <div class="row mt-4">
+        <div class="col-md-8 mx-auto">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        ¿Qué hacen los Meseros?
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p>Los meseros son responsables de:</p>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Atender y asesorar a los clientes</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Llevar comida y bebidas a las mesas</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Hacer recomendaciones del menú</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Actualizar estados de órdenes entregadas</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Gestionar pagos y propinas</li>
+                    </ul>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <strong>Nota:</strong> Los meseros pueden ver todas las órdenes pero solo pueden cambiar estados a "entregado" o "cancelado".
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{% csrf_token %}
+{% endblock %} 

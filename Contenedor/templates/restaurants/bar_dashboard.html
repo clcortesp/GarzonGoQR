@@ -1,0 +1,643 @@
+{% extends 'restaurants/base.html' %}
+
+{% block title %}Dashboard Bar - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        transition: transform 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .order-card {
+        border-left: 4px solid;
+        transition: all 0.3s ease;
+    }
+    
+    .order-pending {
+        border-left-color: #ffc107;
+    }
+    
+    .order-preparing {
+        border-left-color: #0d6efd;
+    }
+    
+    .order-ready {
+        border-left-color: #198754;
+    }
+    
+    .alcoholic-order {
+        background-color: #fff8f0;
+        border-color: #fd7e14 !important;
+    }
+    
+    .bar-stats {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+    }
+    
+    .cocktail-badge {
+        background: linear-gradient(45deg, #ff6b6b, #ffa500);
+        color: white;
+    }
+    
+    .inventory-low {
+        background-color: #fff5f5;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .inventory-medium {
+        background-color: #fff8e1;
+        border-left: 4px solid #fd7e14;
+    }
+    
+    .inventory-good {
+        background-color: #f0fff4;
+        border-left: 4px solid #198754;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header del Dashboard -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-cocktail me-2 text-primary"></i>
+                Dashboard Bar
+            </h1>
+            <p class="text-muted">{{ restaurant.name }} - Bartender: {{ bar_staff.full_name }}</p>
+            <div class="mt-2">
+                {% if bar_staff.certifications %}
+                    <span class="text-muted">Certificaciones:</span>
+                    {% for cert in bar_staff.certifications.all %}
+                        <span class="badge bg-success me-1">{{ cert.name }}</span>
+                    {% endfor %}
+                {% endif %}
+                {% if bar_staff.can_serve_alcohol %}
+                    <span class="badge bg-warning text-dark">
+                        <i class="fas fa-wine-glass me-1"></i>
+                        Licencia de Alcohol
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-4">
+            <!-- Controles -->
+            <div class="row mb-2">
+                <div class="col-12 text-end">
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                        <button type="button" class="btn btn-outline-success" onclick="refreshDashboard()" title="Actualizar">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                        <button type="button" id="auto-refresh-toggle" class="btn btn-outline-info" onclick="toggleAutoRefresh()" title="Auto-actualización">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="checkInventory()" title="Revisar Inventario">
+                            <i class="fas fa-boxes"></i>
+                        </button>
+                    </div>
+                    <small id="last-update" class="text-muted">Última actualización: Ahora</small>
+                </div>
+            </div>
+            
+            <!-- Estados del Personal -->
+            <div class="row">
+                <div class="col-12 text-end">
+                    <div class="btn-group btn-group-sm me-2" role="group">
+                        <button type="button" class="btn btn-outline-success" onclick="updateStatus('available')">
+                            <i class="fas fa-check me-1"></i>
+                            Disponible
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="updateStatus('busy')">
+                            <i class="fas fa-clock me-1"></i>
+                            Ocupado
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" onclick="updateStatus('break')">
+                            <i class="fas fa-pause me-1"></i>
+                            Descanso
+                        </button>
+                    </div>
+                    
+                    <a href="{% url 'restaurants:logout_simple' tenant_slug=restaurant.tenant.slug %}" 
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-sign-out-alt me-1"></i>
+                        Salir
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas Principales -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card bar-stats text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.pending_drinks }}</h4>
+                            <p class="mb-0">Bebidas Pendientes</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-glass-martini fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.preparing_drinks }}</h4>
+                            <p class="mb-0">Preparando</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-cocktail fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card stat-card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.completed_today }}</h4>
+                            <p class="mb-0">Servidas Hoy</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ stats.avg_prep_time|floatformat:0 }}min</h4>
+                            <p class="mb-0">Tiempo Promedio</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-stopwatch fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Órdenes de Bebidas -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            Órdenes de Bebidas
+                        </h5>
+                        
+                        <!-- Filtros -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-all" value="all" checked>
+                            <label class="btn btn-outline-secondary" for="filter-all">Todas</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-pending" value="pending">
+                            <label class="btn btn-outline-warning" for="filter-pending">Pendientes</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-preparing" value="preparing">
+                            <label class="btn btn-outline-info" for="filter-preparing">Preparando</label>
+                            
+                            <input type="radio" class="btn-check" name="statusFilter" id="filter-ready" value="ready">
+                            <label class="btn btn-outline-success" for="filter-ready">Listas</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body" id="orders-container">
+                    {% if drink_orders %}
+                        <div id="orders-list">
+                            {% for order in drink_orders %}
+                                <div class="order-item mb-3" data-status="{{ order.status }}" data-order-id="{{ order.id }}">
+                                    <div class="card order-card order-{{ order.status }} 
+                                        {% if order.has_alcoholic_drinks %}alcoholic-order{% endif %}">
+                                        
+                                        <div class="card-header d-flex justify-content-between align-items-center py-2">
+                                            <div>
+                                                <strong>Mesa {{ order.table.number }}</strong>
+                                                {% if order.has_alcoholic_drinks %}
+                                                    <i class="fas fa-wine-glass text-warning ms-2" title="Contiene Alcohol"></i>
+                                                {% endif %}
+                                            </div>
+                                            <div class="text-end">
+                                                <small class="text-muted">{{ order.created_at|timesince }} atrás</small>
+                                                {% if order.estimated_prep_time %}
+                                                    <span class="badge bg-secondary ms-2">
+                                                        {{ order.estimated_prep_time }}min
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="card-body">
+                                            <!-- Items de Bebidas -->
+                                            {% for item in order.drink_items %}
+                                                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                                    <div>
+                                                        <strong>{{ item.menu_item.name }}</strong>
+                                                        <span class="badge bg-light text-dark ms-2">x{{ item.quantity }}</span>
+                                                        {% if item.menu_item.is_alcoholic %}
+                                                            <span class="badge cocktail-badge">
+                                                                <i class="fas fa-wine-glass"></i>
+                                                            </span>
+                                                        {% endif %}
+                                                        {% if item.special_instructions %}
+                                                            <br><small class="text-muted">{{ item.special_instructions }}</small>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div>
+                                                        <span class="badge 
+                                                            {% if item.status == 'pending' %}bg-warning
+                                                            {% elif item.status == 'preparing' %}bg-info
+                                                            {% elif item.status == 'ready' %}bg-success
+                                                            {% endif %}">
+                                                            {{ item.get_status_display }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
+                                            
+                                            <!-- Botones de Acción -->
+                                            <div class="mt-3">
+                                                {% if order.status == 'pending' %}
+                                                    {% if order.has_alcoholic_drinks and not bar_staff.can_serve_alcohol %}
+                                                        <span class="text-danger">
+                                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                                            Requiere licencia de alcohol
+                                                        </span>
+                                                    {% else %}
+                                                        <button class="btn btn-info btn-sm me-2" onclick="startPreparation({{ order.id }})">
+                                                            <i class="fas fa-play me-1"></i>
+                                                            Comenzar Preparación
+                                                        </button>
+                                                    {% endif %}
+                                                {% elif order.status == 'preparing' %}
+                                                    <button class="btn btn-success btn-sm me-2" onclick="markReady({{ order.id }})">
+                                                        <i class="fas fa-check me-1"></i>
+                                                        Marcar Lista
+                                                    </button>
+                                                    <button class="btn btn-warning btn-sm" onclick="pausePreparation({{ order.id }})">
+                                                        <i class="fas fa-pause me-1"></i>
+                                                        Pausar
+                                                    </button>
+                                                {% elif order.status == 'ready' %}
+                                                    <span class="text-success">
+                                                        <i class="fas fa-check-circle me-1"></i>
+                                                        Lista para servir
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-cocktail text-muted" style="font-size: 4rem;"></i>
+                            <h4 class="text-muted mt-3">No hay órdenes de bebidas</h4>
+                            <p class="text-muted">Cuando haya pedidos de bebidas aparecerán aquí</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de Inventario -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-boxes me-2"></i>
+                        Estado Inventario
+                    </h5>
+                    <button class="btn btn-outline-primary btn-sm" onclick="refreshInventory()">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if inventory_items %}
+                        <div id="inventory-list">
+                            {% for item in inventory_items %}
+                                <div class="inventory-item mb-2 p-2 rounded 
+                                    {% if item.stock_level == 'low' %}inventory-low
+                                    {% elif item.stock_level == 'medium' %}inventory-medium
+                                    {% else %}inventory-good{% endif %}">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <strong>{{ item.name }}</strong>
+                                            {% if item.is_alcoholic %}
+                                                <i class="fas fa-wine-glass text-warning ms-1"></i>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <span class="badge 
+                                                {% if item.stock_level == 'low' %}bg-danger
+                                                {% elif item.stock_level == 'medium' %}bg-warning
+                                                {% else %}bg-success{% endif %}">
+                                                {{ item.current_stock }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {% if item.stock_level == 'low' %}
+                                        <small class="text-danger">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                            Stock bajo
+                                        </small>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-outline-warning btn-sm w-100" onclick="reportLowStock()">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                Reportar Stock Bajo
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-box-open text-muted" style="font-size: 2rem;"></i>
+                            <p class="text-muted mt-2">No hay inventario configurado</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Tips Rápidos -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        Tips Rápidos
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-wine-glass text-warning me-2"></i>
+                            <small>Verifica la edad para bebidas alcohólicas</small>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-thermometer-half text-info me-2"></i>
+                            <small>Temperaturas: Cerveza 4°C, Vino 8-12°C</small>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-clock text-success me-2"></i>
+                            <small>Cocktails complejos: 3-5 min</small>
+                        </li>
+                        <li>
+                            <i class="fas fa-users text-primary me-2"></i>
+                            <small>Prioriza mesas con más invitados</small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Confirmaciones -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Acción</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="modal-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-action">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let autoRefreshInterval;
+let autoRefreshEnabled = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar filtros
+    initializeFilters();
+    
+    // Auto-refresh cada 30 segundos
+    startAutoRefresh();
+});
+
+function initializeFilters() {
+    const filterRadios = document.querySelectorAll('input[name="statusFilter"]');
+    filterRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            filterOrders(this.value);
+        });
+    });
+}
+
+function filterOrders(status) {
+    const orders = document.querySelectorAll('.order-item');
+    orders.forEach(order => {
+        const orderStatus = order.dataset.status;
+        if (status === 'all' || orderStatus === status) {
+            order.style.display = 'block';
+        } else {
+            order.style.display = 'none';
+        }
+    });
+}
+
+function refreshDashboard() {
+    location.reload();
+}
+
+function refreshInventory() {
+    // Actualizar solo el inventario
+    fetch(`/{{ restaurant.tenant.slug }}/bar/inventory-status/`)
+    .then(response => response.json())
+    .then(data => {
+        // Actualizar la sección de inventario
+        console.log('Inventario actualizado');
+    });
+}
+
+function checkInventory() {
+    // Mostrar modal con estado completo del inventario
+    fetch(`/{{ restaurant.tenant.slug }}/bar/full-inventory/`)
+    .then(response => response.json())
+    .then(data => {
+        // Implementar modal de inventario completo
+        console.log('Inventario completo:', data);
+    });
+}
+
+function startAutoRefresh() {
+    if (!autoRefreshEnabled) {
+        autoRefreshInterval = setInterval(refreshDashboard, 30000);
+        autoRefreshEnabled = true;
+        document.getElementById('auto-refresh-toggle').innerHTML = '<i class="fas fa-pause"></i>';
+    }
+}
+
+function toggleAutoRefresh() {
+    if (autoRefreshEnabled) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshEnabled = false;
+        document.getElementById('auto-refresh-toggle').innerHTML = '<i class="fas fa-play"></i>';
+    } else {
+        startAutoRefresh();
+    }
+}
+
+function startPreparation(orderId) {
+    showConfirmModal(
+        '¿Comenzar preparación de estas bebidas?',
+        function() {
+            updateOrderStatus(orderId, 'preparing');
+        }
+    );
+}
+
+function markReady(orderId) {
+    showConfirmModal(
+        '¿Marcar estas bebidas como listas?',
+        function() {
+            updateOrderStatus(orderId, 'ready');
+        }
+    );
+}
+
+function pausePreparation(orderId) {
+    showConfirmModal(
+        '¿Pausar preparación de estas bebidas?',
+        function() {
+            updateOrderStatus(orderId, 'pending');
+        }
+    );
+}
+
+function updateOrderStatus(orderId, status) {
+    fetch(`/{{ restaurant.tenant.slug }}/bar/update-order-status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Actualizar la interfaz
+            location.reload();
+        } else {
+            alert('Error al actualizar el estado: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error de conexión');
+    });
+}
+
+function updateStatus(status) {
+    fetch(`/{{ restaurant.tenant.slug }}/bar/update-staff-status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Estado actualizado a:', status);
+        }
+    });
+}
+
+function reportLowStock() {
+    fetch(`/{{ restaurant.tenant.slug }}/bar/report-low-stock/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Reporte de stock bajo enviado al administrador');
+        } else {
+            alert('Error al enviar reporte: ' + data.error);
+        }
+    });
+}
+
+function showConfirmModal(message, onConfirm) {
+    document.getElementById('modal-message').textContent = message;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    
+    const confirmBtn = document.getElementById('confirm-action');
+    confirmBtn.onclick = function() {
+        modal.hide();
+        onConfirm();
+    };
+    
+    modal.show();
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Actualizar tiempo cada minuto
+setInterval(function() {
+    document.getElementById('last-update').textContent = 'Última actualización: Hace ' + 
+        Math.floor(Date.now() / 60000) + ' min';
+}, 60000);
+</script>
+{% endblock %} 

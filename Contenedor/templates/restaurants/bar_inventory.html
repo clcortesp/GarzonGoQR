@@ -1,0 +1,431 @@
+{% extends 'restaurants/base.html' %}
+
+{% block title %}Inventario Bar - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .inventory-item {
+        transition: all 0.3s ease;
+    }
+    
+    .inventory-low {
+        background-color: #fff5f5;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .inventory-medium {
+        background-color: #fff8e1;
+        border-left: 4px solid #fd7e14;
+    }
+    
+    .inventory-good {
+        background-color: #f0fff4;
+        border-left: 4px solid #198754;
+    }
+    
+    .inventory-out {
+        background-color: #f8f9fa;
+        border-left: 4px solid #6c757d;
+        opacity: 0.7;
+    }
+    
+    .stock-badge {
+        font-size: 1.1rem;
+        padding: 0.5rem 1rem;
+    }
+    
+    .category-header {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-boxes me-2 text-primary"></i>
+                Inventario del Bar
+            </h1>
+            <p class="text-muted">{{ restaurant.name }} - {{ bar_staff.full_name }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-success me-2" onclick="refreshInventory()">
+                <i class="fas fa-sync me-1"></i>
+                Actualizar
+            </button>
+            <button class="btn btn-warning" onclick="reportAllLowStock()">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Reportar Stock Bajo
+            </button>
+        </div>
+    </div>
+
+    <!-- Resumen de Estado -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ inventory_summary.out_of_stock }}</h4>
+                    <p class="mb-0">Sin Stock</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ inventory_summary.low_stock }}</h4>
+                    <p class="mb-0">Stock Bajo</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ inventory_summary.medium_stock }}</h4>
+                    <p class="mb-0">Stock Medio</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ inventory_summary.good_stock }}</h4>
+                    <p class="mb-0">Stock Bueno</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <div class="btn-group" role="group">
+                            <input type="radio" class="btn-check" name="stockFilter" id="filter-all" value="all" checked>
+                            <label class="btn btn-outline-secondary" for="filter-all">Todos</label>
+                            
+                            <input type="radio" class="btn-check" name="stockFilter" id="filter-out" value="out">
+                            <label class="btn btn-outline-danger" for="filter-out">Sin Stock</label>
+                            
+                            <input type="radio" class="btn-check" name="stockFilter" id="filter-low" value="low">
+                            <label class="btn btn-outline-warning" for="filter-low">Stock Bajo</label>
+                            
+                            <input type="radio" class="btn-check" name="stockFilter" id="filter-good" value="good">
+                            <label class="btn btn-outline-success" for="filter-good">Stock Bueno</label>
+                        </div>
+                        
+                        <div class="btn-group ms-3" role="group">
+                            <input type="checkbox" class="btn-check" id="filter-alcoholic">
+                            <label class="btn btn-outline-warning" for="filter-alcoholic">
+                                <i class="fas fa-wine-glass me-1"></i>
+                                Solo Alcohólicas
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventario por Categorías -->
+    {% for category, items in inventory_by_category.items %}
+        <div class="category-section mb-4">
+            <div class="category-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-{{ category.icon|default:'bottle' }} me-2"></i>
+                    {{ category.name }}
+                </h4>
+                <small>{{ items|length }} productos</small>
+            </div>
+            
+            <div class="row">
+                {% for item in items %}
+                    <div class="col-lg-4 col-md-6 mb-3 inventory-item" 
+                         data-stock-level="{{ item.stock_level }}" 
+                         data-is-alcoholic="{{ item.is_alcoholic|yesno:'true,false' }}">
+                        <div class="card inventory-{{ item.stock_level }}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h6 class="card-title mb-1">{{ item.name }}</h6>
+                                        <small class="text-muted">{{ item.brand|default:"Sin marca" }}</small>
+                                        {% if item.is_alcoholic %}
+                                            <i class="fas fa-wine-glass text-warning ms-2" title="Bebida Alcohólica"></i>
+                                        {% endif %}
+                                    </div>
+                                    <span class="badge stock-badge 
+                                        {% if item.stock_level == 'out' %}bg-danger
+                                        {% elif item.stock_level == 'low' %}bg-warning
+                                        {% elif item.stock_level == 'medium' %}bg-info
+                                        {% else %}bg-success{% endif %}">
+                                        {{ item.current_stock }}
+                                    </span>
+                                </div>
+                                
+                                <div class="mb-2">
+                                    <small class="text-muted">
+                                        Mínimo: {{ item.min_stock }} | 
+                                        Máximo: {{ item.max_stock }}
+                                    </small>
+                                </div>
+                                
+                                {% if item.stock_level == 'out' %}
+                                    <div class="alert alert-danger py-2 mb-2">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        <strong>SIN STOCK</strong>
+                                    </div>
+                                {% elif item.stock_level == 'low' %}
+                                    <div class="alert alert-warning py-2 mb-2">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        <strong>Stock Bajo</strong>
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm flex-fill" 
+                                            onclick="adjustStock({{ item.id }}, 'add')">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm flex-fill" 
+                                            onclick="adjustStock({{ item.id }}, 'subtract')">
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                    {% if item.stock_level == 'low' or item.stock_level == 'out' %}
+                                        <button class="btn btn-warning btn-sm" 
+                                                onclick="reportSingleItem({{ item.id }})"
+                                                title="Reportar">
+                                            <i class="fas fa-bell"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="text-center py-4">
+                            <i class="fas fa-box-open text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2">No hay productos en esta categoría</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% empty %}
+        <div class="text-center py-5">
+            <i class="fas fa-boxes text-muted" style="font-size: 4rem;"></i>
+            <h4 class="text-muted mt-3">No hay inventario configurado</h4>
+            <p class="text-muted">Contacta al administrador para configurar el inventario</p>
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Modal de Ajuste de Stock -->
+<div class="modal fade" id="stockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajustar Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Producto:</label>
+                    <p id="modal-product-name" class="fw-bold"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Stock Actual:</label>
+                    <p id="modal-current-stock" class="fw-bold"></p>
+                </div>
+                <div class="mb-3">
+                    <label for="stock-adjustment" class="form-label">Cantidad a ajustar:</label>
+                    <input type="number" class="form-control" id="stock-adjustment" min="1" value="1">
+                </div>
+                <div class="mb-3">
+                    <label for="adjustment-reason" class="form-label">Motivo:</label>
+                    <select class="form-select" id="adjustment-reason">
+                        <option value="received">Mercancía recibida</option>
+                        <option value="consumed">Consumo/Uso</option>
+                        <option value="damaged">Producto dañado</option>
+                        <option value="expired">Producto vencido</option>
+                        <option value="inventory_count">Conteo de inventario</option>
+                        <option value="other">Otro</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-adjustment">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentItemId = null;
+let currentAction = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeFilters();
+});
+
+function initializeFilters() {
+    const stockFilters = document.querySelectorAll('input[name="stockFilter"]');
+    const alcoholicFilter = document.getElementById('filter-alcoholic');
+    
+    stockFilters.forEach(filter => {
+        filter.addEventListener('change', applyFilters);
+    });
+    
+    alcoholicFilter.addEventListener('change', applyFilters);
+}
+
+function applyFilters() {
+    const stockFilter = document.querySelector('input[name="stockFilter"]:checked').value;
+    const alcoholicOnly = document.getElementById('filter-alcoholic').checked;
+    
+    const items = document.querySelectorAll('.inventory-item');
+    
+    items.forEach(item => {
+        const stockLevel = item.dataset.stockLevel;
+        const isAlcoholic = item.dataset.isAlcoholic === 'true';
+        
+        let showItem = true;
+        
+        // Filtro por stock
+        if (stockFilter !== 'all') {
+            if (stockFilter === 'out' && stockLevel !== 'out') showItem = false;
+            if (stockFilter === 'low' && stockLevel !== 'low') showItem = false;
+            if (stockFilter === 'good' && (stockLevel === 'low' || stockLevel === 'out')) showItem = false;
+        }
+        
+        // Filtro por alcohólicas
+        if (alcoholicOnly && !isAlcoholic) {
+            showItem = false;
+        }
+        
+        item.style.display = showItem ? 'block' : 'none';
+    });
+}
+
+function refreshInventory() {
+    location.reload();
+}
+
+function adjustStock(itemId, action) {
+    currentItemId = itemId;
+    currentAction = action;
+    
+    // Obtener información del producto
+    fetch(`/{{ restaurant.tenant.slug }}/bar/get-item-info/${itemId}/`)
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('modal-product-name').textContent = data.name;
+        document.getElementById('modal-current-stock').textContent = data.current_stock;
+        
+        const modal = new bootstrap.Modal(document.getElementById('stockModal'));
+        modal.show();
+    });
+}
+
+function reportSingleItem(itemId) {
+    fetch(`/{{ restaurant.tenant.slug }}/bar/report-single-item/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            item_id: itemId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Reporte enviado al administrador');
+        } else {
+            alert('Error al enviar reporte: ' + data.error);
+        }
+    });
+}
+
+function reportAllLowStock() {
+    fetch(`/{{ restaurant.tenant.slug }}/bar/report-low-stock/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Reporte enviado: ${data.items_reported} productos con stock bajo`);
+        } else {
+            alert('Error al enviar reporte: ' + data.error);
+        }
+    });
+}
+
+// Confirmar ajuste de stock
+document.getElementById('confirm-adjustment').addEventListener('click', function() {
+    const adjustment = parseInt(document.getElementById('stock-adjustment').value);
+    const reason = document.getElementById('adjustment-reason').value;
+    
+    if (!adjustment || adjustment <= 0) {
+        alert('Ingresa una cantidad válida');
+        return;
+    }
+    
+    const finalAdjustment = currentAction === 'subtract' ? -adjustment : adjustment;
+    
+    fetch(`/{{ restaurant.tenant.slug }}/bar/adjust-stock/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            item_id: currentItemId,
+            adjustment: finalAdjustment,
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('stockModal')).hide();
+            location.reload();
+        } else {
+            alert('Error al ajustar stock: ' + data.error);
+        }
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %} 

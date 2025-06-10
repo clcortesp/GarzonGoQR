@@ -13,9 +13,19 @@
                         {% if tenant.logo %}
                             <img src="{{ tenant.logo.url }}" alt="{{ restaurant.name }}" style="height: 40px;" class="me-2">
                         {% endif %}
-                        Iniciar Sesión
+                        {% if role_info %}
+                            <span style="font-size: 1.5rem;">{{ role_info.icon }}</span>
+                            Acceso {{ role_info.name }}
+                        {% else %}
+                            Iniciar Sesión
+                        {% endif %}
                     </h4>
                     <small>{{ restaurant.name }}</small>
+                    {% if role_info.description %}
+                        <div style="font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem;">
+                            {{ role_info.description }}
+                        </div>
+                    {% endif %}
                 </div>
                 <div class="card-body">
                     {% if form.errors %}

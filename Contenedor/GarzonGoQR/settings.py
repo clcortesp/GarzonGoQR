@@ -60,6 +60,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'restaurants.middleware.TenantContextMiddleware',  # ← Para templates
     'restaurants.table_session_manager.TableSessionMiddleware',  # ← Para sesiones de mesa
+    'restaurants.staff_middleware.StaffRoleMiddleware',  # ← Para detección de roles
+    'restaurants.staff_middleware.StaffContextMiddleware',  # ← Para contexto de empleados
 ]
 
 ROOT_URLCONF = 'GarzonGoQR.urls'

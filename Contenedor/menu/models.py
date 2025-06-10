@@ -53,6 +53,12 @@ class MenuCategory(models.Model):
 class MenuItem(models.Model):
     """Elementos del menú (productos individuales)"""
     
+    ITEM_TYPES = [
+        ('food', 'Comida'),
+        ('drink', 'Bebida'),
+        ('both', 'Ambos'),  # Para items que van a cocina Y bar
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='menu_items')
     category = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, related_name='menu_items')
@@ -62,6 +68,15 @@ class MenuItem(models.Model):
     slug = models.SlugField(max_length=200)
     description = models.TextField(verbose_name="Descripción")
     short_description = models.CharField(max_length=150, blank=True, verbose_name="Descripción corta")
+    
+    # NUEVO: Categorización para empleados
+    item_type = models.CharField(
+        max_length=10, 
+        choices=ITEM_TYPES, 
+        default='food',
+        verbose_name="Tipo de item",
+        help_text="Determina qué personal debe preparar este item"
+    )
     
     # Precios
     base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Precio base")

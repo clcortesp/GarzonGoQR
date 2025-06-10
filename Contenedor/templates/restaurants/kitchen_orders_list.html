@@ -1,0 +1,651 @@
+{% extends 'restaurants/base.html' %}
+
+{% block title %}Órdenes de Cocina - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .order-timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+    
+    .order-timeline::before {
+        content: '';
+        position: absolute;
+        left: 0.5rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #dee2e6;
+    }
+    
+    .timeline-item {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+    
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -1.5rem;
+        top: 0.5rem;
+        width: 12px;
+        height: 12px;
+        background: #fff;
+        border: 3px solid;
+        border-radius: 50%;
+    }
+    
+    .timeline-pending::before { border-color: #ffc107; }
+    .timeline-preparing::before { border-color: #0d6efd; background: #0d6efd; }
+    .timeline-ready::before { border-color: #198754; background: #198754; }
+    
+    .priority-indicator {
+        width: 4px;
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+    }
+    
+    .priority-high { background: #dc3545; }
+    .priority-medium { background: #fd7e14; }
+    .priority-low { background: #28a745; }
+    
+    .prep-timer {
+        font-family: monospace;
+        font-size: 1.1rem;
+        font-weight: bold;
+    }
+    
+    .timer-warning { color: #fd7e14; }
+    .timer-danger { color: #dc3545; }
+    
+    .ingredient-list {
+        columns: 2;
+        column-gap: 1rem;
+    }
+    
+    .cooking-method {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background: #e9ecef;
+        border-radius: 0.25rem;
+        font-size: 0.8rem;
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3 mb-0">
+                <i class="fas fa-fire me-2 text-danger"></i>
+                Órdenes de Cocina
+            </h1>
+            <p class="text-muted">{{ restaurant.name }} - {{ orders.count }} órdenes activas</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-group me-2">
+                <button class="btn btn-outline-success" onclick="refreshOrders()">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <button class="btn btn-outline-info" onclick="toggleSound()">
+                    <i class="fas fa-volume-up" id="sound-icon"></i>
+                </button>
+            </div>
+            <a href="{% url 'restaurants:kitchen_dashboard' tenant_slug=restaurant.tenant.slug %}" 
+               class="btn btn-primary">
+                <i class="fas fa-tachometer-alt me-1"></i>
+                Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Estadísticas Rápidas -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ stats.pending }}</h4>
+                    <p class="mb-0">Pendientes</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ stats.preparing }}</h4>
+                    <p class="mb-0">En Preparación</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h4 class="mb-0">{{ stats.ready }}</h4>
+                    <p class="mb-0">Listos</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros y Ordenamiento -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-all" value="all" checked>
+                                <label class="btn btn-outline-secondary" for="filter-all">Todas</label>
+                                
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-pending" value="pending">
+                                <label class="btn btn-outline-warning" for="filter-pending">Pendientes</label>
+                                
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-preparing" value="preparing">
+                                <label class="btn btn-outline-info" for="filter-preparing">Preparando</label>
+                                
+                                <input type="radio" class="btn-check" name="statusFilter" id="filter-ready" value="ready">
+                                <label class="btn btn-outline-success" for="filter-ready">Listos</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group">
+                                <select class="form-select" id="priority-filter">
+                                    <option value="all">Todas las prioridades</option>
+                                    <option value="high">Alta prioridad</option>
+                                    <option value="medium">Prioridad media</option>
+                                    <option value="low">Prioridad baja</option>
+                                </select>
+                            </div>
+                            <div class="btn-group ms-2">
+                                <select class="form-select" id="sort-order">
+                                    <option value="time">Más antiguas primero</option>
+                                    <option value="priority">Por prioridad</option>
+                                    <option value="table">Por mesa</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Órdenes -->
+    <div class="row" id="orders-container">
+        {% for order in orders %}
+            <div class="col-lg-6 mb-4 order-item" 
+                 data-status="{{ order.status }}" 
+                 data-priority="{{ order.priority }}"
+                 data-table="{{ order.table.number }}"
+                 data-time="{{ order.created_at|date:'U' }}">
+                <div class="card h-100 position-relative">
+                    <div class="priority-indicator priority-{{ order.priority }}"></div>
+                    
+                    <!-- Header de la Orden -->
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Mesa {{ order.table.number }}</strong>
+                            <span class="badge bg-light text-dark ms-2">{{ order.food_items.count }} items</span>
+                            {% if order.priority == 'high' %}
+                                <i class="fas fa-exclamation-triangle text-danger ms-2" title="Prioridad Alta"></i>
+                            {% elif order.priority == 'medium' %}
+                                <i class="fas fa-exclamation text-warning ms-2" title="Prioridad Media"></i>
+                            {% endif %}
+                        </div>
+                        <div class="text-end">
+                            <div class="prep-timer" id="timer-{{ order.id }}">
+                                {{ order.elapsed_time }}
+                            </div>
+                            <small class="text-muted d-block">{{ order.created_at|timesince }} atrás</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Cuerpo de la Orden -->
+                    <div class="card-body">
+                        <!-- Items de Comida -->
+                        <div class="order-timeline">
+                            {% for item in order.food_items %}
+                                <div class="timeline-item timeline-{{ item.status }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">{{ item.menu_item.name }}</h6>
+                                            <span class="badge bg-light text-dark">x{{ item.quantity }}</span>
+                                            
+                                            <!-- Métodos de Cocción -->
+                                            {% if item.menu_item.cooking_methods %}
+                                                <div class="mt-1">
+                                                    {% for method in item.menu_item.cooking_methods.all %}
+                                                        <span class="cooking-method">{{ method.name }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <!-- Ingredientes Especiales -->
+                                            {% if item.menu_item.ingredients %}
+                                                <div class="mt-2">
+                                                    <small class="text-muted">Ingredientes:</small>
+                                                    <div class="ingredient-list">
+                                                        {% for ingredient in item.menu_item.ingredients.all %}
+                                                            <small class="d-block">• {{ ingredient.name }}</small>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <!-- Instrucciones Especiales -->
+                                            {% if item.special_instructions %}
+                                                <div class="mt-2 p-2 bg-light rounded">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-sticky-note me-1"></i>
+                                                        {{ item.special_instructions }}
+                                                    </small>
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <!-- Alergias y Restricciones -->
+                                            {% if item.dietary_restrictions %}
+                                                <div class="mt-2">
+                                                    {% for restriction in item.dietary_restrictions.all %}
+                                                        <span class="badge bg-warning text-dark me-1">
+                                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                                            {{ restriction.name }}
+                                                        </span>
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="ms-3">
+                                            <span class="badge 
+                                                {% if item.status == 'pending' %}bg-warning
+                                                {% elif item.status == 'preparing' %}bg-info
+                                                {% elif item.status == 'ready' %}bg-success
+                                                {% endif %}">
+                                                {{ item.get_status_display }}
+                                            </span>
+                                            
+                                            {% if item.estimated_prep_time %}
+                                                <div class="mt-1">
+                                                    <small class="text-muted">
+                                                        {{ item.estimated_prep_time }}min
+                                                    </small>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Footer con Botones de Acción -->
+                    <div class="card-footer">
+                        <div class="d-flex gap-2">
+                            {% if order.status == 'pending' %}
+                                <button class="btn btn-info flex-fill" onclick="startPreparation({{ order.id }})">
+                                    <i class="fas fa-play me-1"></i>
+                                    Comenzar
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="changePriority({{ order.id }})">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </button>
+                            {% elif order.status == 'preparing' %}
+                                <button class="btn btn-success flex-fill" onclick="markReady({{ order.id }})">
+                                    <i class="fas fa-check me-1"></i>
+                                    Marcar Listo
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="pausePreparation({{ order.id }})">
+                                    <i class="fas fa-pause"></i>
+                                </button>
+                                <button class="btn btn-outline-info" onclick="addNote({{ order.id }})">
+                                    <i class="fas fa-sticky-note"></i>
+                                </button>
+                            {% elif order.status == 'ready' %}
+                                <div class="text-center w-100">
+                                    <span class="text-success">
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        Listo para servir
+                                    </span>
+                                    <br>
+                                    <small class="text-muted">
+                                        Completado hace {{ order.completed_at|timesince }}
+                                    </small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="fas fa-utensils text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="text-muted mt-3">No hay órdenes de cocina</h4>
+                    <p class="text-muted">Las nuevas órdenes aparecerán aquí automáticamente</p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal para Cambiar Prioridad -->
+<div class="modal fade" id="priorityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cambiar Prioridad</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nueva prioridad:</label>
+                    <select class="form-select" id="new-priority">
+                        <option value="low">Baja</option>
+                        <option value="medium">Media</option>
+                        <option value="high">Alta</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Motivo:</label>
+                    <textarea class="form-control" id="priority-reason" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-priority">Cambiar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar Nota -->
+<div class="modal fade" id="noteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agregar Nota de Cocina</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nota:</label>
+                    <textarea class="form-control" id="kitchen-note" rows="4" 
+                              placeholder="Ej: Cambio de guarnición, tiempo extra de cocción, etc."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-note">Agregar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let soundEnabled = true;
+let currentOrderId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeFilters();
+    startTimers();
+    
+    // Auto-refresh cada 15 segundos
+    setInterval(refreshOrders, 15000);
+    
+    // Sonido de nueva orden
+    checkForNewOrders();
+});
+
+function initializeFilters() {
+    const statusFilters = document.querySelectorAll('input[name="statusFilter"]');
+    const priorityFilter = document.getElementById('priority-filter');
+    const sortOrder = document.getElementById('sort-order');
+    
+    statusFilters.forEach(filter => {
+        filter.addEventListener('change', applyFilters);
+    });
+    
+    priorityFilter.addEventListener('change', applyFilters);
+    sortOrder.addEventListener('change', applyFilters);
+}
+
+function applyFilters() {
+    const statusFilter = document.querySelector('input[name="statusFilter"]:checked').value;
+    const priorityFilter = document.getElementById('priority-filter').value;
+    const sortOrder = document.getElementById('sort-order').value;
+    
+    const orders = Array.from(document.querySelectorAll('.order-item'));
+    
+    // Filtrar
+    orders.forEach(order => {
+        const status = order.dataset.status;
+        const priority = order.dataset.priority;
+        
+        let show = true;
+        
+        if (statusFilter !== 'all' && status !== statusFilter) show = false;
+        if (priorityFilter !== 'all' && priority !== priorityFilter) show = false;
+        
+        order.style.display = show ? 'block' : 'none';
+    });
+    
+    // Ordenar elementos visibles
+    const visibleOrders = orders.filter(order => order.style.display !== 'none');
+    
+    visibleOrders.sort((a, b) => {
+        switch (sortOrder) {
+            case 'priority':
+                const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+                return priorityOrder[b.dataset.priority] - priorityOrder[a.dataset.priority];
+            case 'table':
+                return parseInt(a.dataset.table) - parseInt(b.dataset.table);
+            case 'time':
+            default:
+                return parseInt(a.dataset.time) - parseInt(b.dataset.time);
+        }
+    });
+    
+    // Reordenar en el DOM
+    const container = document.getElementById('orders-container');
+    visibleOrders.forEach(order => {
+        container.appendChild(order);
+    });
+}
+
+function startTimers() {
+    const timers = document.querySelectorAll('.prep-timer');
+    
+    setInterval(() => {
+        timers.forEach(timer => {
+            const orderId = timer.id.replace('timer-', '');
+            updateTimer(timer, orderId);
+        });
+    }, 1000);
+}
+
+function updateTimer(element, orderId) {
+    // Aquí se actualizaría el tiempo real
+    // Por ahora solo cambiamos colores basado en tiempo
+    const currentTime = element.textContent;
+    const minutes = parseInt(currentTime.split(':')[0]);
+    
+    element.classList.remove('timer-warning', 'timer-danger');
+    
+    if (minutes > 20) {
+        element.classList.add('timer-danger');
+    } else if (minutes > 15) {
+        element.classList.add('timer-warning');
+    }
+}
+
+function refreshOrders() {
+    location.reload();
+}
+
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const icon = document.getElementById('sound-icon');
+    icon.className = soundEnabled ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+    
+    localStorage.setItem('kitchen-sound', soundEnabled);
+}
+
+function playNotificationSound() {
+    if (soundEnabled) {
+        // Reproducir sonido de notificación
+        const audio = new Audio('/static/sounds/kitchen-notification.mp3');
+        audio.play().catch(e => console.log('Error reproduciendo sonido:', e));
+    }
+}
+
+function checkForNewOrders() {
+    // Verificar nuevas órdenes periódicamente
+    setInterval(() => {
+        fetch(`/{{ restaurant.tenant.slug }}/kitchen/check-new-orders/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.new_orders) {
+                playNotificationSound();
+            }
+        });
+    }, 10000);
+}
+
+function startPreparation(orderId) {
+    updateOrderStatus(orderId, 'preparing');
+}
+
+function markReady(orderId) {
+    updateOrderStatus(orderId, 'ready');
+}
+
+function pausePreparation(orderId) {
+    updateOrderStatus(orderId, 'pending');
+}
+
+function changePriority(orderId) {
+    currentOrderId = orderId;
+    const modal = new bootstrap.Modal(document.getElementById('priorityModal'));
+    modal.show();
+}
+
+function addNote(orderId) {
+    currentOrderId = orderId;
+    const modal = new bootstrap.Modal(document.getElementById('noteModal'));
+    modal.show();
+}
+
+function updateOrderStatus(orderId, status) {
+    fetch(`/{{ restaurant.tenant.slug }}/kitchen/update-order-status/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            status: status
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error al actualizar: ' + data.error);
+        }
+    });
+}
+
+// Event listeners para modales
+document.getElementById('confirm-priority').addEventListener('click', function() {
+    const priority = document.getElementById('new-priority').value;
+    const reason = document.getElementById('priority-reason').value;
+    
+    fetch(`/{{ restaurant.tenant.slug }}/kitchen/change-priority/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: currentOrderId,
+            priority: priority,
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('priorityModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+
+document.getElementById('confirm-note').addEventListener('click', function() {
+    const note = document.getElementById('kitchen-note').value;
+    
+    if (!note.trim()) {
+        alert('Ingresa una nota');
+        return;
+    }
+    
+    fetch(`/{{ restaurant.tenant.slug }}/kitchen/add-note/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: currentOrderId,
+            note: note
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Cargar configuración de sonido
+document.addEventListener('DOMContentLoaded', function() {
+    const savedSound = localStorage.getItem('kitchen-sound');
+    if (savedSound !== null) {
+        soundEnabled = savedSound === 'true';
+        toggleSound();
+    }
+});
+</script>
+{% endblock %} 

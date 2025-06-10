@@ -58,11 +58,45 @@
             border-radius: 5px;
             font-weight: bold;
             transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
         }
         
         .nav-link:hover {
             transform: translateY(-2px);
             opacity: 0.9;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .role-access-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .role-card {
+            flex-direction: column;
+            padding: 1.5rem;
+            height: 120px;
+        }
+        
+        .role-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .role-title {
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+        
+        .role-description {
+            opacity: 0.8;
+            font-size: 0.85rem;
         }
         
         .info-grid {
@@ -103,25 +137,26 @@
         <p>Sistema de menú digital funcionando correctamente.</p>
         
         <div class="nav-links">
-            <a href="/{{ tenant.slug }}/menu/" class="nav-link">🍽️ Ver Menú</a>
-            <a href="/{{ tenant.slug }}/cart/" class="nav-link">🛒 Carrito</a>
-            <a href="/{{ tenant.slug }}/scan/DEMO123/" class="nav-link">📱 QR Demo</a>
+            <a href="/{{ tenant.slug }}/menu/" class="nav-link">🍽️ Ver Menú Completo</a>
+            <a href="/{{ tenant.slug }}/cart/" class="nav-link">🛒 Mi Carrito</a>
+            <a href="/{{ tenant.slug }}/scan/DEMO123/" class="nav-link">📱 Probar QR</a>
             
             {% if user.is_authenticated %}
-                <!-- Usuario logueado - mostrar opciones según tipo -->
+                <!-- Usuario logueado - mostrar dashboard específico -->
                 {% if user_is_waiter %}
-                    <a href="{% url 'restaurants:waiter_dashboard' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #ffc107; color: #000;">👨‍🍳 Dashboard Garzón</a>
-                    <a href="{% url 'restaurants:waiter_notifications' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #fd7e14;">🔔 Notificaciones</a>
-                    <a href="{% url 'restaurants:waiter_tables' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #6f42c1;">🪑 Mis Mesas</a>
+                    <a href="{% url 'restaurants:waiter_dashboard' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #ffc107; color: #000;">👨‍🍳 Mi Dashboard</a>
+                {% elif user_is_kitchen %}
+                    <a href="/{{ tenant.slug }}/kitchen/" class="nav-link" style="background-color: #ff6b35; color: white;">👨‍🍳 Dashboard Cocina</a>
+                {% elif user_is_bar %}
+                    <a href="/{{ tenant.slug }}/bar/" class="nav-link" style="background-color: #3742fa; color: white;">🍹 Dashboard Bar</a>
                 {% else %}
                     <a href="{% url 'restaurants:admin_dashboard' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #dc3545;">👑 Panel Admin</a>
-                    <a href="/{{ tenant.slug }}/orders/dashboard/" class="nav-link">📋 Gestión de Pedidos</a>
                 {% endif %}
                 <a href="{% url 'restaurants:logout_simple' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #6c757d;">🚪 Cerrar Sesión</a>
             {% else %}
-                <!-- Usuario no logueado - mostrar opciones de acceso -->
-                <a href="{% url 'restaurants:login' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #28a745;">🔑 Acceso Admin</a>
-                <a href="{% url 'restaurants:login' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #ffc107; color: #000;">👨‍🍳 Acceso Garzón</a>
+                <!-- Enlaces para acceso de empleados -->
+                <a href="/{{ tenant.slug }}/staff/login/" class="nav-link" style="background-color: #28a745;">👥 Acceso Empleados</a>
+                <a href="/{{ tenant.slug }}/admin/" class="nav-link" style="background-color: #dc3545;">👑 Administración</a>
             {% endif %}
         </div>
         
