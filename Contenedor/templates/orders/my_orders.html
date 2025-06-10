@@ -1,0 +1,400 @@
+{% extends 'restaurants/base.html' %}
+{% load humanize %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .orders-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .table-info-banner {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    
+    .order-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+        transition: transform 0.3s ease;
+    }
+    
+    .order-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .order-header {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 1rem 1.5rem;
+    }
+    
+    .order-status {
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+    }
+    
+    .status-confirmed {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .status-preparing {
+        background: #cce5ff;
+        color: #004085;
+        border: 1px solid #99d6ff;
+    }
+    
+    .status-ready {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+    }
+    
+    .status-delivered {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .status-cancelled {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .order-item {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .order-item:last-child {
+        border-bottom: none;
+    }
+    
+    .item-badge {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 15px;
+        padding: 0.2rem 0.6rem;
+        font-size: 0.75rem;
+        margin: 0.1rem;
+        display: inline-block;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+    
+    .floating-menu-btn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        border-radius: 50px;
+        padding: 0.8rem 1.5rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    .time-badge {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        padding: 0.3rem 0.6rem;
+        border-radius: 10px;
+        font-size: 0.8rem;
+    }
+    
+    @media (max-width: 768px) {
+        .orders-container {
+            padding: 10px;
+        }
+        
+        .order-header {
+            padding: 0.8rem 1rem;
+        }
+        
+        .floating-menu-btn {
+            bottom: 15px;
+            right: 15px;
+            padding: 0.6rem 1.2rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="orders-container">
+    <!-- Banner de Mesa Activa -->
+    <div class="table-info-banner">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <i class="bi bi-table fs-1"></i>
+            </div>
+            <div class="col">
+                <h4 class="mb-1">{{ table_info.name }}</h4>
+                <p class="mb-0 opacity-90">
+                    {% if table_info.location %}📍 {{ table_info.location }} • {% endif %}
+                    Sesión activa • Pedidos del día
+                </p>
+            </div>
+            <div class="col-auto">
+                <span class="time-badge">
+                    <i class="bi bi-clock me-1"></i>
+                    {{ orders.count }} pedido{{ orders.count|pluralize }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Título -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-list-check me-2 text-primary"></i>
+            Mis Pedidos
+        </h2>
+                            <a href="/{{ restaurant.tenant.slug }}/menu/" class="btn btn-outline-primary">
+            <i class="bi bi-plus-circle me-1"></i>
+            Ordenar Más
+        </a>
+    </div>
+
+    <!-- Lista de Pedidos -->
+    {% if orders %}
+        {% for order in orders %}
+        <div class="order-card">
+            <!-- Header del pedido -->
+            <div class="order-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-1">
+                            <i class="bi bi-receipt me-2"></i>
+                            Pedido #{{ order.order_number }}
+                        </h5>
+                        <p class="mb-0 opacity-90">
+                            <i class="bi bi-clock me-1"></i>
+                            {{ order.created_at|date:"H:i" }} • {{ order.created_at|date:"d/m/Y" }}
+                        </p>
+                    </div>
+                    <div class="col-auto">
+                        <span class="order-status status-{{ order.status }}">
+                            {% if order.status == 'pending' %}
+                                ⏳ Pendiente
+                            {% elif order.status == 'confirmed' %}
+                                ✅ Confirmado
+                            {% elif order.status == 'preparing' %}
+                                👨‍🍳 Preparando
+                            {% elif order.status == 'ready' %}
+                                🔔 Listo
+                            {% elif order.status == 'delivered' %}
+                                ✅ Entregado
+                            {% elif order.status == 'cancelled' %}
+                                ❌ Cancelado
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenido del pedido -->
+            <div class="card-body">
+                <!-- Items del pedido -->
+                {% for item in order.items.all %}
+                <div class="order-item">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h6 class="mb-1">
+                                {{ item.quantity }}x {{ item.menu_item.name }}
+                            </h6>
+                            
+                            <!-- Variantes, addons, modificadores -->
+                            {% if item.selected_variant %}
+                                <span class="item-badge">{{ item.selected_variant.name }}</span>
+                            {% endif %}
+                            {% for addon in item.selected_addons.all %}
+                                <span class="item-badge text-success">+ {{ addon.name }}</span>
+                            {% endfor %}
+                            {% for modifier in item.selected_modifiers.all %}
+                                <span class="item-badge text-warning">{{ modifier.name }}</span>
+                            {% endfor %}
+                            
+                            {% if item.special_instructions %}
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-chat-quote me-1"></i>
+                                    <em>{{ item.special_instructions }}</em>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-auto">
+                            <strong class="text-success">
+                                ${{ item.total_price|floatformat:0|intcomma }}
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                <!-- Total del pedido -->
+                <div class="border-top pt-3 mt-3">
+                    <div class="row">
+                        <div class="col">
+                            <div class="d-flex justify-content-between">
+                                <span>Subtotal:</span>
+                                <span>${{ order.subtotal|floatformat:0|intcomma }}</span>
+                            </div>
+                            {% if order.tax_amount %}
+                            <div class="d-flex justify-content-between">
+                                <span>IVA:</span>
+                                <span>${{ order.tax_amount|floatformat:0|intcomma }}</span>
+                            </div>
+                            {% endif %}
+                            {% if order.delivery_fee %}
+                            <div class="d-flex justify-content-between">
+                                <span>Domicilio:</span>
+                                <span>${{ order.delivery_fee|floatformat:0|intcomma }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="d-flex justify-content-between border-top pt-2 mt-2">
+                                <strong>Total:</strong>
+                                <strong class="text-success fs-5">
+                                    ${{ order.total_amount|floatformat:0|intcomma }}
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acciones del pedido -->
+                <div class="border-top pt-3 mt-3">
+                    <div class="row">
+                        <div class="col">
+                            {% if order.status == 'pending' %}
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Tu pedido está siendo procesado
+                                </small>
+                            {% elif order.status == 'confirmed' %}
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    Pedido confirmado • Tiempo estimado: 15-20 min
+                                </small>
+                            {% elif order.status == 'preparing' %}
+                                <small class="text-primary">
+                                    <i class="bi bi-fire me-1"></i>
+                                    ¡Tu pedido se está preparando en cocina!
+                                </small>
+                            {% elif order.status == 'ready' %}
+                                <small class="text-info">
+                                    <i class="bi bi-bell me-1"></i>
+                                    ¡Tu pedido está listo! Nuestro garzón te lo llevará pronto
+                                </small>
+                            {% elif order.status == 'delivered' %}
+                                <small class="text-success">
+                                    <i class="bi bi-check2-all me-1"></i>
+                                    Pedido entregado • ¡Que lo disfrutes!
+                                </small>
+                            {% endif %}
+                        </div>
+                        <div class="col-auto">
+                            <a href="/{{ restaurant.tenant.slug }}/orders/{{ order.id }}/" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye me-1"></i>
+                                Ver Detalles
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <!-- Estado vacío -->
+        <div class="empty-state">
+            <i class="bi bi-cart-x display-1 text-muted mb-3"></i>
+            <h4 class="text-muted mb-3">No has realizado pedidos hoy</h4>
+            <p class="text-muted mb-4">
+                ¡Explora nuestro delicioso menú y realiza tu primer pedido!
+            </p>
+            <a href="/{{ restaurant.tenant.slug }}/menu/" 
+               class="btn btn-primary btn-lg">
+                <i class="bi bi-plus-circle me-2"></i>
+                Ver Menú
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Botón flotante para ir al menú -->
+<a href="/{{ restaurant.tenant.slug }}/menu/" 
+   class="floating-menu-btn btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>
+    Ordenar Más
+</a>
+
+<!-- Script para actualización automática -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-refresh cada 30 segundos para ver actualizaciones de estado
+    let refreshInterval;
+    
+    function startAutoRefresh() {
+        refreshInterval = setInterval(function() {
+            // Solo refresh si hay pedidos pendientes/preparando
+            const hasPendingOrders = document.querySelector('.status-pending, .status-confirmed, .status-preparing');
+            if (hasPendingOrders) {
+                console.log('🔄 Actualizando estado de pedidos...');
+                window.location.reload();
+            }
+        }, 30000); // 30 segundos
+    }
+    
+    // Iniciar auto-refresh
+    startAutoRefresh();
+    
+    // Pausar auto-refresh si la pestaña no está activa
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            clearInterval(refreshInterval);
+        } else {
+            startAutoRefresh();
+        }
+    });
+    
+    // Efectos visuales de entrada
+    const orderCards = document.querySelectorAll('.order-card');
+    orderCards.forEach(function(card, index) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        
+        setTimeout(function() {
+            card.style.transition = 'all 0.5s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+});
+</script>
+{% endblock %} 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Tenant, Restaurant, Table, TableScanLog
+from .models import Tenant, Restaurant, Table, TableScanLog, Waiter, WaiterNotification
 
 # Register your models here.
 
@@ -141,16 +141,183 @@ class RestaurantAdmin(admin.ModelAdmin):
         """Optimizar queries para evitar N+1"""
         return super().get_queryset(request).select_related('tenant', 'owner')
 
+@admin.register(Waiter)
+class WaiterAdmin(admin.ModelAdmin):
+    list_display = [
+        'full_name', 
+        'restaurant', 
+        'status_badge', 
+        'assigned_tables_count',
+        'is_available',
+        'is_working_hours',
+        'last_active'
+    ]
+    list_filter = [
+        'restaurant', 
+        'status', 
+        'is_available', 
+        'notification_email',
+        'created_at'
+    ]
+    search_fields = [
+        'user__first_name', 
+        'user__last_name', 
+        'user__username',
+        'employee_id',
+        'restaurant__name'
+    ]
+    raw_id_fields = ['user']
+    
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('restaurant', 'user', 'employee_id', 'phone')
+        }),
+        ('Estado Laboral', {
+            'fields': ('status', 'is_available', 'shift_start', 'shift_end')
+        }),
+        ('Configuración de Notificaciones', {
+            'fields': ('notification_email', 'notification_push', 'notification_sound'),
+            'classes': ('collapse',)
+        }),
+        ('Estadísticas', {
+            'fields': ('total_orders_served', 'average_response_time', 'rating_average'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at', 'last_active'),
+            'classes': ('collapse',)
+        }),
+    )
+    readonly_fields = ['created_at', 'updated_at', 'last_active']
+    
+    def status_badge(self, obj):
+        """Mostrar estado con colores"""
+        colors = {
+            'active': 'green',
+            'inactive': 'gray',
+            'on_break': 'orange',
+            'busy': 'red'
+        }
+        color = colors.get(obj.status, 'gray')
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">● {}</span>',
+            color,
+            obj.get_status_display()
+        )
+    status_badge.short_description = 'Estado'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user', 'restaurant')
+
+
+@admin.register(WaiterNotification)
+class WaiterNotificationAdmin(admin.ModelAdmin):
+    list_display = [
+        'title',
+        'waiter',
+        'table',
+        'notification_type_badge',
+        'priority_badge',
+        'status_badge',
+        'created_at'
+    ]
+    list_filter = [
+        'notification_type',
+        'status',
+        'priority',
+        'waiter__restaurant',
+        'created_at'
+    ]
+    search_fields = [
+        'title',
+        'waiter__user__first_name',
+        'waiter__user__last_name',
+        'table__number',
+        'order__order_number'
+    ]
+    readonly_fields = ['created_at', 'read_at', 'responded_at']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('waiter', 'table', 'order', 'notification_type', 'title', 'message')
+        }),
+        ('Estado y Prioridad', {
+            'fields': ('status', 'priority')
+        }),
+        ('Metadatos', {
+            'fields': ('metadata',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'read_at', 'responded_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def notification_type_badge(self, obj):
+        """Badge para tipo de notificación"""
+        colors = {
+            'new_order': '#007bff',
+            'order_ready': '#28a745',
+            'customer_request': '#ffc107',
+            'table_call': '#17a2b8',
+            'urgent': '#dc3545'
+        }
+        color = colors.get(obj.notification_type, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{}</span>',
+            color,
+            obj.get_notification_type_display()
+        )
+    notification_type_badge.short_description = 'Tipo'
+    
+    def priority_badge(self, obj):
+        """Badge para prioridad"""
+        colors = {1: '#28a745', 2: '#ffc107', 3: '#dc3545'}
+        labels = {1: 'Normal', 2: 'Alta', 3: 'Urgente'}
+        color = colors.get(obj.priority, '#6c757d')
+        label = labels.get(obj.priority, 'Normal')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{}</span>',
+            color,
+            label
+        )
+    priority_badge.short_description = 'Prioridad'
+    
+    def status_badge(self, obj):
+        """Badge para estado"""
+        colors = {
+            'pending': '#ffc107',
+            'read': '#17a2b8',
+            'responded': '#28a745',
+            'dismissed': '#6c757d'
+        }
+        color = colors.get(obj.status, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{}</span>',
+            color,
+            obj.get_status_display()
+        )
+    status_badge.short_description = 'Estado'
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('waiter__user', 'table', 'order')
+
+
 @admin.register(Table)
 class TableAdmin(admin.ModelAdmin):
-    list_display = ['number', 'restaurant', 'display_name', 'capacity', 'is_active', 'qr_enabled', 'total_scans', 'total_orders']
-    list_filter = ['restaurant', 'is_active', 'qr_enabled', 'capacity', 'created_at']
-    search_fields = ['number', 'name', 'restaurant__name']
+    list_display = ['number', 'restaurant', 'display_name', 'assigned_waiter', 'capacity', 'is_active', 'qr_enabled', 'total_scans', 'total_orders']
+    list_filter = ['restaurant', 'assigned_waiter', 'is_active', 'qr_enabled', 'capacity', 'created_at']
+    search_fields = ['number', 'name', 'restaurant__name', 'assigned_waiter__user__first_name', 'assigned_waiter__user__last_name']
     readonly_fields = ['qr_code_uuid', 'total_scans', 'last_scan', 'total_orders', 'created_at', 'updated_at']
     
     fieldsets = (
         ('Información Básica', {
             'fields': ('restaurant', 'number', 'name', 'capacity', 'location')
+        }),
+        ('Asignación de Personal', {
+            'fields': ('assigned_waiter',)
         }),
         ('Estado', {
             'fields': ('is_active', 'qr_enabled')

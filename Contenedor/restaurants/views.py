@@ -21,10 +21,26 @@ class TenantMixin:
     """Mixin para views que requieren contexto de tenant"""
     
     def get_context_data(self, **kwargs):
+        from .models import Waiter
+        
         context = super().get_context_data(**kwargs)
+        
+        # Verificar si el usuario actual es un garzón
+        user_is_waiter = False
+        if self.request.user.is_authenticated:
+            try:
+                Waiter.objects.get(
+                    restaurant=get_current_restaurant(self.request),
+                    user=self.request.user
+                )
+                user_is_waiter = True
+            except Waiter.DoesNotExist:
+                pass
+        
         context.update({
             'tenant': get_current_tenant(self.request),
             'restaurant': get_current_restaurant(self.request),
+            'user_is_waiter': user_is_waiter,
         })
         return context
 
@@ -34,8 +50,27 @@ class TenantLoginView(TenantMixin, LoginView):
     template_name = 'restaurants/auth/login.html'
     
     def get_success_url(self):
-        # Redirigir al dashboard después del login
-        return f'/{self.request.tenant.slug}/dashboard/'
+        from .models import Waiter
+        
+        # Verificar si el usuario es un garzón
+        try:
+            waiter = Waiter.objects.get(
+                restaurant=self.request.restaurant, 
+                user=self.request.user
+            )
+            # Es un garzón, redirigir a su dashboard
+            return f'/{self.request.tenant.slug}/waiter/'
+        except Waiter.DoesNotExist:
+            pass
+        
+        # Verificar si es owner/admin del restaurante
+        if (self.request.user == self.request.restaurant.owner or
+            self.request.user.is_staff):
+            # Es admin, redirigir al panel de administración
+            return f'/{self.request.tenant.slug}/admin/'
+        
+        # Usuario regular, redirigir al home
+        return f'/{self.request.tenant.slug}/'
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -48,10 +83,71 @@ class TenantLoginView(TenantMixin, LoginView):
 class TenantLogoutView(TenantMixin, LogoutView):
     """Vista de logout específica para el tenant"""
     template_name = 'restaurants/auth/logout.html'
+    http_method_names = ['get', 'post']  # Permitir ambos métodos
     
     def get_next_page(self):
         # Redirigir a la página principal del tenant después del logout
-        return f'/{self.request.tenant.slug}/'
+        try:
+            return f'/{self.request.tenant.slug}/'
+        except AttributeError:
+            # Fallback si no hay tenant
+            return '/'
+    
+    def get(self, request, *args, **kwargs):
+        """Manejar peticiones GET realizando logout inmediatamente"""
+        from django.contrib.auth import logout
+        logout(request)
+        # Limpiar mensajes de sesión si existen
+        if hasattr(request, 'session'):
+            messages.success(request, 'Has cerrado sesión exitosamente.')
+        return redirect(self.get_next_page())
+    
+    def post(self, request, *args, **kwargs):
+        """Manejar peticiones POST con el comportamiento estándar de LogoutView"""
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception as e:
+            # Fallback a logout manual si hay problemas
+            from django.contrib.auth import logout
+            logout(request)
+            return redirect(self.get_next_page())
+    
+    def dispatch(self, request, *args, **kwargs):
+        """Manejo seguro del dispatch"""
+        try:
+            return super().dispatch(request, *args, **kwargs)
+        except Exception as e:
+            # Fallback último recurso
+            from django.contrib.auth import logout
+            logout(request)
+            return redirect('/')
+
+
+def simple_logout_view(request, tenant_slug):
+    """Vista simple de logout con redirect directo"""
+    from django.contrib.auth import logout
+    from django.shortcuts import redirect
+    
+    logout(request)
+    return redirect('restaurants:home', tenant_slug=tenant_slug)
+
+
+def test_logout_view(request, tenant_slug):
+    """Vista de test para probar logout"""
+    from django.shortcuts import render
+    
+    return render(request, 'test_logout.html', {
+        'tenant_slug': tenant_slug
+    })
+
+
+def test_links_view(request, tenant_slug):
+    """Vista de test para probar enlaces"""
+    from django.shortcuts import render
+    
+    return render(request, 'test_links.html', {
+        'tenant_slug': tenant_slug
+    })
 
 
 class TenantHomeView(TenantMixin, TemplateView):
@@ -263,6 +359,8 @@ def table_qr_scan(request, tenant_slug, table_uuid):
     Vista que se ejecuta cuando alguien escanea un código QR de mesa
     """
     try:
+        from .table_session_manager import TableSessionManager
+        
         # Obtener tenant y restaurant
         tenant = get_object_or_404(Tenant, slug=tenant_slug)
         restaurant = tenant.restaurant
@@ -273,34 +371,32 @@ def table_qr_scan(request, tenant_slug, table_uuid):
         # Verificar que la mesa esté activa
         if not table.is_active or not table.qr_enabled:
             messages.warning(request, f'La mesa {table.number} no está disponible actualmente.')
-            return redirect('restaurants:restaurant_home', tenant_slug=tenant_slug)
+            return redirect('restaurants:home', tenant_slug=tenant_slug)
         
-        # Registrar el escaneo
-        scan_log = TableScanLog.objects.create(
-            table=table,
-            ip_address=get_client_ip(request),
-            user_agent=request.META.get('HTTP_USER_AGENT', '')
-        )
-        
-        # Incrementar contador de escaneos
-        table.increment_scan_count()
-        
-        # Guardar información de la mesa en la sesión
-        request.session['selected_table'] = {
-            'table_id': table.id,
-            'table_number': table.number,
-            'table_name': table.display_name,
-            'scan_log_id': scan_log.id
-        }
-        
-        messages.success(request, f'¡Bienvenido a {table.display_name}! Tu mesa ha sido seleccionada automáticamente.')
+        # Verificar si ya hay una sesión activa para esta mesa desde otra IP
+        existing_session = TableSessionManager.get_active_session(request)
+        if existing_session and existing_session['table_id'] == table.id:
+            # Renovar sesión existente
+            TableSessionManager.extend_session(request)
+            messages.info(request, f'Sesión renovada para {table.display_name}.')
+        else:
+            # Invalidar sesión anterior si existe
+            if existing_session:
+                TableSessionManager.invalidate_session(request)
+            
+            # Crear nueva sesión segura
+            session_token, session_data = TableSessionManager.create_table_session(table, request)
+            
+            duration_minutes = TableSessionManager.SESSION_DURATION
+            messages.success(request, 
+                f'¡Bienvenido a {table.display_name}! Tu sesión estará activa por {duration_minutes} minutos.')
         
         # Redirigir al menú del restaurante
-        return redirect('menu:menu_list', tenant_slug=tenant_slug)
+        return redirect(f'/{tenant_slug}/menu/')
         
     except Exception as e:
         messages.error(request, 'Error al procesar el código QR. Por favor inténtalo de nuevo.')
-        return redirect('restaurants:restaurant_home', tenant_slug=tenant_slug)
+        return redirect('restaurants:home', tenant_slug=tenant_slug)
 
 
 @login_required
@@ -427,7 +523,9 @@ def generate_table_qr(request, tenant_slug, table_id):
             border=4,
         )
         
-        qr.add_data(table.full_qr_url)
+        # Usar URL dinámica basada en el request
+        qr_url = table.get_full_qr_url(request)
+        qr.add_data(qr_url)
         qr.make(fit=True)
         
         # Crear imagen QR
@@ -471,7 +569,9 @@ def table_qr_preview(request, tenant_slug, table_id):
             border=4,
         )
         
-        qr.add_data(table.full_qr_url)
+        # Usar URL dinámica basada en el request
+        qr_url = table.get_full_qr_url(request)
+        qr.add_data(qr_url)
         qr.make(fit=True)
         
         img = qr.make_image(fill_color="black", back_color="white")
@@ -485,7 +585,7 @@ def table_qr_preview(request, tenant_slug, table_id):
             'tenant': tenant,
             'table': table,
             'qr_image': img_str,
-            'qr_url': table.full_qr_url
+            'qr_url': qr_url  # URL dinámica ya calculada
         }
         
         return render(request, 'restaurants/table_qr_preview.html', context)
@@ -503,3 +603,54 @@ def get_client_ip(request):
     else:
         ip = request.META.get('REMOTE_ADDR')
     return ip
+
+
+def session_closed_by_waiter(request, tenant_slug):
+    """
+    Página especial para cuando el garzón cierra la sesión del cliente
+    """
+    restaurant = request.restaurant
+    
+    # Obtener información del garzón que cerró la sesión (si está disponible)
+    waiter_info = None
+    table_info = None
+    
+    # Verificar si hay información sobre quién cerró la sesión
+    table_id = request.GET.get('table_id')
+    if table_id:
+        from django.core.cache import cache
+        try:
+            table = Table.objects.get(id=table_id, restaurant=restaurant)
+            table_info = {
+                'number': table.number,
+                'name': table.name or f"Mesa {table.number}"
+            }
+        except Table.DoesNotExist:
+            pass
+            
+        invalidation_key = f"table_invalidated_{table_id}"
+        invalidation_data = cache.get(invalidation_key)
+        
+        if invalidation_data:
+            waiter_info = {
+                'name': invalidation_data.get('waiter_name', 'Nuestro equipo'),
+                'reason': invalidation_data.get('reason', 'Finalización de servicio'),
+                'timestamp': invalidation_data.get('timestamp'),
+                'sessions_ended': invalidation_data.get('sessions_ended', 0)
+            }
+    
+    # Limpiar cualquier sesión residual
+    if 'table_session' in request.session:
+        del request.session['table_session']
+    if 'selected_table' in request.session:
+        del request.session['selected_table']
+    
+    context = {
+        'restaurant': restaurant,
+        'waiter_info': waiter_info,
+        'table_info': table_info,
+        'page_title': f'Sesión Finalizada - {restaurant.name}',
+        'show_hero': False,
+    }
+    
+    return render(request, 'restaurants/session_closed.html', context)

@@ -39,6 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',  # Para filtros como {{ value|floatformat }}
+    
+    # Channels para WebSocket
+    'channels',
 
     # Apps de la empresa
     'restaurants',
@@ -56,6 +59,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'restaurants.middleware.TenantContextMiddleware',  # ← Para templates
+    'restaurants.table_session_manager.TableSessionMiddleware',  # ← Para sesiones de mesa
 ]
 
 ROOT_URLCONF = 'GarzonGoQR.urls'
@@ -77,6 +81,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'GarzonGoQR.wsgi.application'
+ASGI_APPLICATION = 'GarzonGoQR.asgi.application'
+
+# Channels configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 
 # Database
@@ -142,3 +157,41 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Configuración del carrito de compras
 CART_SESSION_ID = 'cart'
 SESSION_COOKIE_AGE = 86400  # 24 horas
+
+# ============================================================================
+# 📱 CONFIGURACIÓN DEL SISTEMA QR DINÁMICO
+# ============================================================================
+
+# 🔧 URL base para códigos QR (opcional - si no se especifica, usa detección automática)
+# QR_BASE_URL = None  # Ejemplo: "https://miapp.com"
+
+# 🔒 Protocolo para URLs de QR cuando se usan dominios personalizados
+USE_HTTPS = not DEBUG  # HTTPS en producción, HTTP en desarrollo
+
+# 🕐 Configuración de sesiones de mesa
+TABLE_SESSION_DURATION = 60      # Duración total de sesión (minutos)
+TABLE_INACTIVITY_TIMEOUT = 45    # Tiempo máximo sin actividad (minutos)
+
+# ============================================================================
+# 🌍 CONFIGURACIÓN POR ENTORNO (OPCIONAL)
+# ============================================================================
+
+# Obtener entorno desde variable de entorno
+ENVIRONMENT = os.environ.get('DJANGO_ENV', 'development')
+
+if ENVIRONMENT == 'production':
+    # 🚀 PRODUCCIÓN - Configurar cuando subas a servidor
+    # QR_BASE_URL = "https://tudominio.com"
+    # USE_HTTPS = True
+    pass
+    
+elif ENVIRONMENT == 'staging':
+    # 🧪 STAGING - Configurar si tienes servidor de pruebas  
+    # QR_BASE_URL = "https://staging.tudominio.com"
+    # USE_HTTPS = True
+    pass
+    
+elif ENVIRONMENT == 'development':
+    # 💻 DESARROLLO - Tu configuración actual
+    QR_BASE_URL = "http://localhost:7000"
+    USE_HTTPS = False

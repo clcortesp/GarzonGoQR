@@ -123,7 +123,7 @@
             
             <!-- Botones -->
             <div class="text-center mt-4">
-                <a href="{% url 'orders:order_detail' tenant_slug=request.tenant.slug order_id=order.id %}" 
+                <a href="/{{ request.tenant.slug }}/orders/{{ order.id }}/" 
                    class="btn btn-primary">
                     Ver Detalles Completos
                 </a>

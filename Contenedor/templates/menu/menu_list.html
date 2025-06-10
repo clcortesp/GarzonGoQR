@@ -5,6 +5,41 @@
 
 {% block content %}
 <div class="container-fluid py-4">
+    <!-- 🆕 INDICADOR DE MESA ACTIVA -->
+    {% if active_table_info %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="alert alert-success border-0 shadow-sm" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <div class="bg-white rounded-circle p-3 text-success">
+                            <i class="bi bi-check-circle-fill fs-4"></i>
+                        </div>
+                    </div>
+                    <div class="col text-white">
+                        <h5 class="mb-1 text-white">
+                            <i class="bi bi-wifi me-2"></i>
+                            ¡Conectado a {{ active_table_info.name }}!
+                        </h5>
+                        <p class="mb-0 opacity-90">
+                            {% if active_table_info.location %}
+                                📍 {{ active_table_info.location }} • 
+                            {% endif %}
+                            ✅ Sesión activa • Puedes ordenar directamente
+                        </p>
+                    </div>
+                    <div class="col-auto">
+                        <a href="/{{ tenant.slug }}/orders/my-orders/" class="btn btn-outline-light btn-sm">
+                            <i class="bi bi-list-check me-1"></i>
+                            Mis Pedidos
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Header del menú -->
     <div class="row">
         <div class="col-12">
@@ -14,7 +49,7 @@
                 {% endif %}
                 <h1 class="display-4 mb-2">{{ restaurant.name }}</h1>
                 <p class="lead">Nuestro Delicioso Menú</p>
-                {% if show_qr_info %}
+                {% if not active_table_info and show_qr_info %}
                     <small class="d-block mt-3">
                         📱 ¡Escaneaste el código QR! Puedes realizar tu pedido desde aquí.
                     </small>

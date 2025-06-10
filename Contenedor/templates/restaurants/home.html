@@ -108,13 +108,20 @@
             <a href="/{{ tenant.slug }}/scan/DEMO123/" class="nav-link">📱 QR Demo</a>
             
             {% if user.is_authenticated %}
-                <!-- Usuario logueado - mostrar opciones de administración -->
-                <a href="/{{ tenant.slug }}/dashboard/" class="nav-link">📊 Dashboard General</a>
-                <a href="/{{ tenant.slug }}/orders/dashboard/" class="nav-link">📋 Gestión de Pedidos</a>
-                <a href="/{{ tenant.slug }}/logout/" class="nav-link" style="background-color: #6c757d;">🚪 Cerrar Sesión</a>
+                <!-- Usuario logueado - mostrar opciones según tipo -->
+                {% if user_is_waiter %}
+                    <a href="{% url 'restaurants:waiter_dashboard' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #ffc107; color: #000;">👨‍🍳 Dashboard Garzón</a>
+                    <a href="{% url 'restaurants:waiter_notifications' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #fd7e14;">🔔 Notificaciones</a>
+                    <a href="{% url 'restaurants:waiter_tables' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #6f42c1;">🪑 Mis Mesas</a>
+                {% else %}
+                    <a href="{% url 'restaurants:admin_dashboard' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #dc3545;">👑 Panel Admin</a>
+                    <a href="/{{ tenant.slug }}/orders/dashboard/" class="nav-link">📋 Gestión de Pedidos</a>
+                {% endif %}
+                <a href="{% url 'restaurants:logout_simple' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #6c757d;">🚪 Cerrar Sesión</a>
             {% else %}
-                <!-- Usuario no logueado - mostrar botón de login -->
-                <a href="/{{ tenant.slug }}/login/" class="nav-link" style="background-color: #28a745;">🔑 Acceso Administrador</a>
+                <!-- Usuario no logueado - mostrar opciones de acceso -->
+                <a href="{% url 'restaurants:login' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #28a745;">🔑 Acceso Admin</a>
+                <a href="{% url 'restaurants:login' tenant_slug=tenant.slug %}" class="nav-link" style="background-color: #ffc107; color: #000;">👨‍🍳 Acceso Garzón</a>
             {% endif %}
         </div>
         

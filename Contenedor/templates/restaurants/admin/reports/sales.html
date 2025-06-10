@@ -1,0 +1,181 @@
+{% extends 'restaurants/admin/base.html' %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h3>
+            <i class="bi bi-graph-up me-2"></i>
+            Reportes de Ventas
+        </h3>
+        <p class="text-muted">Analiza el rendimiento de tu restaurante</p>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Fecha Desde</label>
+                        <input type="date" class="form-control" name="date_from" value="{{ date_from }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Fecha Hasta</label>
+                        <input type="date" class="form-control" name="date_to" value="{{ date_to }}">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="bi bi-search me-1"></i>
+                            Filtrar
+                        </button>
+                        <a href="{% url 'restaurants:admin_sales_report' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estadísticas Generales -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-primary">{{ stats.total_orders }}</h3>
+                <p class="text-muted mb-0">Total Pedidos</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-success">${{ stats.total_sales|floatformat:0 }}</h3>
+                <p class="text-muted mb-0">Total Ventas</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-info">${{ stats.average_order|floatformat:0 }}</h3>
+                <p class="text-muted mb-0">Promedio por Pedido</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h3 class="text-warning">{{ stats.products_sold }}</h3>
+                <p class="text-muted mb-0">Productos Vendidos</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Ventas por Día -->
+{% if daily_sales %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Ventas por Día</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="salesChart" width="400" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Productos Más Vendidos -->
+{% if top_products %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Productos Más Vendidos</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cantidad Vendida</th>
+                                <th>Total Ingresos</th>
+                                <th>Precio Promedio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in top_products %}
+                                <tr>
+                                    <td>{{ product.menu_item__name }}</td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ product.total_quantity }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>${{ product.total_revenue|floatformat:0 }}</strong>
+                                    </td>
+                                    <td>
+                                        ${{ product.avg_price|floatformat:0 }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if daily_sales %}
+<script>
+const ctx = document.getElementById('salesChart').getContext('2d');
+const salesChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [{% for sale in daily_sales %}'{{ sale.date|date:"d/m" }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Ventas Diarias',
+            data: [{% for sale in daily_sales %}{{ sale.total|floatformat:0 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return '$' + value.toLocaleString();
+                    }
+                }
+            }
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return 'Ventas: $' + context.parsed.y.toLocaleString();
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %} 

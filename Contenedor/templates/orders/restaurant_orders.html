@@ -270,7 +270,7 @@
                             </td>
                             <td>{{ order.created_at|time:"H:i" }}</td>
                             <td>
-                                <a href="{% url 'orders:order_detail' tenant_slug=request.tenant.slug order_id=order.id %}" 
+                                <a href="/{{ request.tenant.slug }}/orders/{{ order.id }}/" 
                                    class="btn btn-sm btn-outline-primary">
                                     Ver
                                 </a>

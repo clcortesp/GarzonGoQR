@@ -1,0 +1,91 @@
+{% extends 'restaurants/admin/base.html' %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h3>
+            <i class="bi bi-people me-2"></i>
+            Gestión de Garzones
+        </h3>
+        <p class="text-muted">Administra el equipo de garzones de tu restaurante</p>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'restaurants:admin_waiters_create' tenant_slug=restaurant.tenant.slug %}" 
+           class="btn btn-primary">
+            <i class="bi bi-person-plus me-1"></i>
+            Agregar Garzón
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Lista de Garzones</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if waiters %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Email</th>
+                                    <th>Estado</th>
+                                    <th>Mesas Asignadas</th>
+                                    <th width="120">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for waiter in waiters %}
+                                    <tr>
+                                        <td>{{ waiter.user.get_full_name|default:waiter.user.username }}</td>
+                                        <td>{{ waiter.user.email }}</td>
+                                        <td>
+                                            {% if waiter.is_active %}
+                                                <span class="badge bg-success">Activo</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Inactivo</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ waiter.assigned_tables.count }} mesa{{ waiter.assigned_tables.count|pluralize:"s" }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'restaurants:admin_waiters_edit' tenant_slug=restaurant.tenant.slug waiter_id=waiter.id %}" 
+                                                   class="btn btn-outline-primary">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <button type="button" 
+                                                        class="btn btn-outline-danger"
+                                                        onclick="deleteItem('{% url 'restaurants:admin_waiters_delete' tenant_slug=restaurant.tenant.slug waiter_id=waiter.id %}', '{{ waiter.user.get_full_name|default:waiter.user.username }}')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-people text-muted" style="font-size: 4rem;"></i>
+                        <h5 class="mt-3 text-muted">No hay garzones registrados</h5>
+                        <p class="text-muted">Comienza agregando tu primer garzón</p>
+                        <a href="{% url 'restaurants:admin_waiters_create' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn btn-primary">
+                            <i class="bi bi-person-plus me-1"></i>
+                            Agregar Primer Garzón
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %} 

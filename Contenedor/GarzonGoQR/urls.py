@@ -34,7 +34,6 @@ urlpatterns = [
     
     # URLs con tenant - DEBE IR AL FINAL
     # Capturamos el tenant_slug pero lo procesamos en el middleware
-    path('<slug:tenant_slug>/orders/', include('orders.urls')),
     path('<slug:tenant_slug>/', include('restaurants.urls')),
 ]
 

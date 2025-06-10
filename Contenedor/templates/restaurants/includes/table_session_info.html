@@ -1,0 +1,222 @@
+{% load humanize %}
+
+<!-- Información de Sesión de Mesa -->
+{% if table_session_info %}
+<div class="alert alert-info border-0 rounded-3 mb-3" id="table-session-alert">
+    <div class="d-flex align-items-center">
+        <div class="me-3">
+            <i class="fas fa-table fa-2x text-primary"></i>
+        </div>
+        <div class="flex-grow-1">
+            <h6 class="alert-heading mb-1">
+                <i class="fas fa-wifi me-1"></i>
+                Conectado a {{ table_session_info.table_name }}
+            </h6>
+            <div class="row g-2 small text-muted">
+                <div class="col-md-6">
+                    <i class="fas fa-clock me-1"></i>
+                    <span id="session-timer">
+                        Expira en {{ table_session_info.time_remaining_minutes }} minutos
+                    </span>
+                </div>
+                <div class="col-md-6">
+                    <i class="fas fa-history me-1"></i>
+                    Último uso: {{ table_session_info.last_activity|timesince }} atrás
+                </div>
+            </div>
+            
+            {% if table_session_info.is_expiring_soon %}
+                <div class="mt-2">
+                    <span class="badge bg-warning text-dark">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        ¡Sesión expirando pronto!
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" 
+                            onclick="extendSession()">
+                        <i class="fas fa-plus-circle me-1"></i>
+                        Extender sesión
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+        <div class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-secondary" 
+                    onclick="endSession()" title="Finalizar sesión">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Timer de sesión
+let sessionExpiresAt = new Date('{{ table_session_info.expires_at|date:"c" }}');
+let sessionTimerElement = document.getElementById('session-timer');
+
+function updateSessionTimer() {
+    let now = new Date();
+    let timeLeft = Math.max(0, Math.floor((sessionExpiresAt - now) / 1000));
+    
+    if (timeLeft <= 0) {
+        // Sesión expirada
+        sessionTimerElement.innerHTML = '<span class="text-danger">Sesión expirada</span>';
+        showSessionExpiredModal();
+        return;
+    }
+    
+    let minutes = Math.floor(timeLeft / 60);
+    let seconds = timeLeft % 60;
+    
+    let timerText = `Expira en ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    if (minutes < 5) {
+        timerText = `<span class="text-warning">${timerText}</span>`;
+    }
+    
+    sessionTimerElement.innerHTML = timerText;
+}
+
+// Actualizar cada segundo
+setInterval(updateSessionTimer, 1000);
+updateSessionTimer();
+
+function extendSession() {
+    fetch(`/{{ tenant.slug }}/api/extend-session/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Actualizar tiempo de expiración
+            sessionExpiresAt = new Date(data.new_expires_at);
+            updateSessionTimer();
+            
+            // Mostrar mensaje
+            showToast('Sesión extendida exitosamente', 'success');
+            
+            // Quitar badge de expirando
+            let expiringSoon = document.querySelector('.badge.bg-warning');
+            if (expiringSoon) {
+                expiringSoon.parentElement.style.display = 'none';
+            }
+        } else {
+            showToast('Error al extender sesión: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error de conexión', 'error');
+    });
+}
+
+function endSession() {
+    if (confirm('¿Estás seguro de que quieres finalizar tu sesión de mesa?')) {
+        fetch(`/{{ tenant.slug }}/api/end-session/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = `/{{ tenant.slug }}/`;
+            } else {
+                showToast('Error al finalizar sesión', 'error');
+            }
+        });
+    }
+}
+
+function showSessionExpiredModal() {
+    // Crear modal dinámicamente si no existe
+    if (!document.getElementById('sessionExpiredModal')) {
+        let modalHtml = `
+            <div class="modal fade" id="sessionExpiredModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning text-dark">
+                            <h5 class="modal-title">
+                                <i class="fas fa-clock me-2"></i>
+                                Sesión Expirada
+                            </h5>
+                        </div>
+                        <div class="modal-body text-center">
+                            <i class="fas fa-hourglass-end fa-3x text-warning mb-3"></i>
+                            <h6>Tu sesión de mesa ha expirado</h6>
+                            <p class="text-muted">Para continuar realizando pedidos, escanea nuevamente el código QR de tu mesa.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" onclick="goHome()">
+                                <i class="fas fa-home me-1"></i>
+                                Ir al inicio
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="refreshPage()">
+                                <i class="fas fa-sync me-1"></i>
+                                Actualizar página
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+    
+    let modal = new bootstrap.Modal(document.getElementById('sessionExpiredModal'));
+    modal.show();
+}
+
+function goHome() {
+    window.location.href = `/{{ tenant.slug }}/`;
+}
+
+function refreshPage() {
+    window.location.reload();
+}
+
+function showToast(message, type) {
+    // Implementar toast notifications
+    let toastClass = type === 'success' ? 'bg-success' : 'bg-danger';
+    let toastHtml = `
+        <div class="toast align-items-center text-white ${toastClass} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    // Crear contenedor de toasts si no existe
+    if (!document.getElementById('toast-container')) {
+        document.body.insertAdjacentHTML('beforeend', 
+            '<div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3"></div>');
+    }
+    
+    let container = document.getElementById('toast-container');
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    
+    let toast = new bootstrap.Toast(container.lastElementChild);
+    toast.show();
+}
+</script>
+
+{% else %}
+<!-- Sin sesión de mesa -->
+<div class="alert alert-light border rounded-3 mb-3">
+    <div class="d-flex align-items-center">
+        <div class="me-3">
+            <i class="fas fa-qrcode fa-2x text-muted"></i>
+        </div>
+        <div class="flex-grow-1">
+            <h6 class="mb-1">¿Estás en una mesa?</h6>
+            <p class="mb-0 small text-muted">
+                Escanea el código QR de tu mesa para una experiencia personalizada
+            </p>
+        </div>
+    </div>
+</div>
+{% endif %} 

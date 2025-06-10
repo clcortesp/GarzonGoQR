@@ -1,0 +1,256 @@
+{% extends 'restaurants/base.html' %}
+
+{% block title %}Sesión Finalizada - {{ restaurant.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .session-closed-container {
+        min-height: 90vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        color: white;
+    }
+    
+    .session-card {
+        background: rgba(255, 255, 255, 0.95);
+        color: #333;
+        border-radius: 20px;
+        padding: 3rem;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        text-align: center;
+        max-width: 600px;
+        margin: 0 auto;
+        backdrop-filter: blur(10px);
+    }
+    
+    .session-icon {
+        font-size: 4rem;
+        color: #28a745;
+        margin-bottom: 1.5rem;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+    
+    .restaurant-name {
+        color: #667eea;
+        font-weight: bold;
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+    
+    .main-message {
+        font-size: 1.3rem;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+    
+    .waiter-info {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 2rem 0;
+        border-left: 4px solid #28a745;
+    }
+    
+    .action-buttons {
+        margin-top: 2rem;
+    }
+    
+    .btn-return {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        border: none;
+        padding: 0.8rem 2rem;
+        font-size: 1.1rem;
+        border-radius: 50px;
+        color: white;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        margin: 0.5rem;
+        display: inline-block;
+    }
+    
+    .btn-return:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-menu {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border: none;
+        padding: 0.8rem 2rem;
+        font-size: 1.1rem;
+        border-radius: 50px;
+        color: white;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        margin: 0.5rem;
+        display: inline-block;
+    }
+    
+    .btn-menu:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+    
+    .table-badge {
+        background: #667eea;
+        color: white;
+        padding: 0.4rem 1rem;
+        border-radius: 20px;
+        font-weight: bold;
+        margin: 0 0.5rem;
+    }
+    
+    .thank-you-section {
+        margin-top: 2.5rem;
+        padding-top: 2rem;
+        border-top: 2px dashed #dee2e6;
+    }
+    
+    .satisfaction-emoji {
+        font-size: 2rem;
+        margin: 0 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="session-closed-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="session-card">
+                    <!-- Icono Principal -->
+                    <div class="session-icon">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    
+                    <!-- Nombre del Restaurante -->
+                    <div class="restaurant-name">
+                        {{ restaurant.name }}
+                    </div>
+                    
+                    <!-- Mensaje Principal -->
+                    <div class="main-message">
+                        <strong>¡Tu experiencia gastronómica ha finalizado!</strong>
+                        <br>
+                        Nuestro equipo ha cerrado tu sesión de mesa para brindarte el mejor servicio.
+                    </div>
+                    
+                    <!-- Información de Mesa y Garzón -->
+                    {% if table_info or waiter_info %}
+                    <div class="waiter-info">
+                        {% if table_info %}
+                            <p class="mb-2">
+                                <i class="bi bi-table me-2 text-primary"></i>
+                                <strong>Mesa atendida:</strong> 
+                                <span class="table-badge">{{ table_info.name }}</span>
+                            </p>
+                        {% endif %}
+                        
+                        {% if waiter_info %}
+                            <p class="mb-2">
+                                <i class="bi bi-person-badge me-2 text-success"></i>
+                                <strong>Atendido por:</strong> {{ waiter_info.name }}
+                            </p>
+                            {% if waiter_info.reason and waiter_info.reason != 'finalizada_por_garzon' %}
+                                <p class="mb-0">
+                                    <i class="bi bi-info-circle me-2 text-info"></i>
+                                    <strong>Motivo:</strong> {{ waiter_info.reason }}
+                                </p>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Mensaje de Agradecimiento -->
+                    <div class="thank-you-section">
+                        <h4 class="text-primary mb-3">
+                            <i class="bi bi-heart-fill me-2"></i>
+                            ¡Gracias por visitarnos!
+                        </h4>
+                        
+                        <p class="mb-3">
+                            Esperamos que hayas disfrutado de una experiencia gastronómica inolvidable. 
+                            Tu satisfacción es nuestra prioridad.
+                        </p>
+                        
+                        <!-- Emojis de Satisfacción -->
+                        <div class="mb-3">
+                            <span class="satisfaction-emoji">😊</span>
+                            <span class="satisfaction-emoji">🍽️</span>
+                            <span class="satisfaction-emoji">⭐</span>
+                        </div>
+                        
+                        <p class="text-muted">
+                            <i class="bi bi-clock me-1"></i>
+                            ¡Te esperamos pronto para otra experiencia deliciosa!
+                        </p>
+                    </div>
+                    
+                    <!-- Botones de Acción -->
+                    <div class="action-buttons">
+                        <a href="{% url 'restaurants:home' tenant_slug=restaurant.tenant.slug %}" 
+                           class="btn-return">
+                            <i class="bi bi-house-fill me-2"></i>
+                            Volver al Inicio
+                        </a>
+                        
+                        <a href="/{{ restaurant.tenant.slug }}/menu/" 
+                           class="btn-menu">
+                            <i class="bi bi-book me-2"></i>
+                            Ver Menú
+                        </a>
+                    </div>
+                    
+                    <!-- Información del Restaurante -->
+                    <div class="mt-4 pt-3 border-top">
+                        <small class="text-muted">
+                            <i class="bi bi-geo-alt me-1"></i>
+                            {{ restaurant.address|default:"" }}
+                            {% if restaurant.phone %}
+                                <br>
+                                <i class="bi bi-telephone me-1"></i>
+                                {{ restaurant.phone }}
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para redirección automática opcional -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Agregar efecto de entrada suave
+    const card = document.querySelector('.session-card');
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    
+    setTimeout(function() {
+        card.style.transition = 'all 0.6s ease';
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+    }, 100);
+    
+    // Opcional: Redirección automática después de 2 minutos
+    // setTimeout(function() {
+    //     if (confirm('¿Te gustaría volver al inicio del restaurante?')) {
+    //         window.location.href = "{% url 'restaurants:home' tenant_slug=restaurant.tenant.slug %}";
+    //     }
+    // }, 120000); // 2 minutos
+});
+</script>
+{% endblock %} 

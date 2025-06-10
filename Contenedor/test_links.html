@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Enlaces Garzones</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .btn { padding: 10px 20px; margin: 10px; text-decoration: none; background: #007bff; color: white; border-radius: 5px; display: inline-block; }
+        .btn:hover { background: #0056b3; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Test de Enlaces de Garzones</h1>
+    
+    <div>
+        <strong>Estado del usuario:</strong>
+        {% if user.is_authenticated %}
+            ✅ Logueado como: {{ user.username }}
+            {% if user_is_waiter %}
+                <span class="success">(Es garzón)</span>
+            {% else %}
+                <span class="error">(No es garzón)</span>
+            {% endif %}
+        {% else %}
+            ❌ No logueado
+        {% endif %}
+    </div>
+    
+    <h3>Enlaces de Garzones (con URL names):</h3>
+    <div>
+        <a href="{% url 'restaurants:waiter_dashboard' tenant_slug=tenant.slug %}" class="btn">Dashboard Garzón</a>
+        <a href="{% url 'restaurants:waiter_notifications' tenant_slug=tenant.slug %}" class="btn">Notificaciones</a>
+        <a href="{% url 'restaurants:waiter_tables' tenant_slug=tenant.slug %}" class="btn">Mesas</a>
+    </div>
+    
+    <h3>Enlaces Estáticos (para comparar):</h3>
+    <div>
+        <a href="/{{ tenant.slug }}/waiter/" class="btn">Dashboard (estático)</a>
+        <a href="/{{ tenant.slug }}/waiter/notifications/" class="btn">Notificaciones (estático)</a>
+        <a href="/{{ tenant.slug }}/waiter/tables/" class="btn">Mesas (estático)</a>
+    </div>
+    
+    <h3>Información de Debug:</h3>
+    <ul>
+        <li><strong>Tenant Slug:</strong> {{ tenant.slug }}</li>
+        <li><strong>URL Actual:</strong> {{ request.get_full_path }}</li>
+        <li><strong>Usuario:</strong> {{ user.username|default:"No logueado" }}</li>
+        <li><strong>Es Garzón:</strong> {{ user_is_waiter|yesno:"Sí,No,Desconocido" }}</li>
+    </ul>
+    
+    <h3>Otros Enlaces:</h3>
+    <div>
+        <a href="{% url 'restaurants:home' tenant_slug=tenant.slug %}" class="btn">Home</a>
+        <a href="{% url 'restaurants:login' tenant_slug=tenant.slug %}" class="btn">Login</a>
+        {% if user.is_authenticated %}
+            <a href="{% url 'restaurants:logout_simple' tenant_slug=tenant.slug %}" class="btn">Logout</a>
+        {% endif %}
+    </div>
+</body>
+</html> 
